@@ -143,6 +143,38 @@ pipeline {
             }
         }
         
+        stage('Production Approval') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    timeout(time: 30, unit: 'MINUTES') {
+                        def deploymentDetails = """
+🚀 PRODUCTION DEPLOYMENT CONFIRMATION
+
+📋 Deployment Details:
+├─ Environment: PRODUCTION
+├─ Build: #${BUILD_NUMBER}
+├─ Branch: ${env.CURRENT_BRANCH}
+├─ Commit: ${GIT_COMMIT}
+└─ Images: Ready to deploy
+
+⚠️ This will deploy to PRODUCTION environment.
+                        """
+                        
+                        def approval = input(
+                            message: deploymentDetails,
+                            ok: 'Deploy to Production',
+                            submitterParameter: 'DEPLOYER'
+                        )
+                        
+                        echo "✅ Production deployment confirmed by: ${approval}"
+                    }
+                }
+            }
+        }
+        
         stage('Deploy to Environment') {
             steps {
                 script {
@@ -228,44 +260,6 @@ pipeline {
                         sleep 10
                         echo "✅ ${TARGET_ENVIRONMENT} environment tests completed"
                     """
-                }
-            }
-        }
-        
-        stage('Production Approval') {
-            when {
-                allOf {
-                    anyOf {
-                        branch 'main'
-                        branch 'master'
-                    }
-                    expression { env.TARGET_ENVIRONMENT == 'prod' }
-                }
-            }
-            steps {
-                script {
-                    timeout(time: 30, unit: 'MINUTES') {
-                        def deploymentDetails = """
-🚀 PRODUCTION DEPLOYMENT CONFIRMATION
-
-📋 Deployment Details:
-├─ Environment: PRODUCTION
-├─ Build: #${BUILD_NUMBER}
-├─ Branch: ${env.CURRENT_BRANCH}
-├─ Commit: ${GIT_COMMIT}
-└─ Images: Ready to deploy
-
-⚠️ This will deploy to PRODUCTION environment.
-                        """
-                        
-                        def approval = input(
-                            message: deploymentDetails,
-                            ok: 'Deploy to Production',
-                            submitterParameter: 'DEPLOYER'
-                        )
-                        
-                        echo "✅ Production deployment confirmed by: ${approval}"
-                    }
                 }
             }
         }
