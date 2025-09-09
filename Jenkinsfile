@@ -145,7 +145,13 @@ pipeline {
         
         stage('Production Approval') {
             when {
-                branch 'main'
+                anyOf {
+                    branch 'main'
+                    branch 'master' 
+                    expression { env.GIT_BRANCH == 'origin/main' }
+                    expression { env.CURRENT_BRANCH == 'main' }
+                    expression { env.TARGET_ENVIRONMENT == 'prod' }
+                }
             }
             steps {
                 script {
