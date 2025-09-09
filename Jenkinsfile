@@ -23,6 +23,16 @@ pipeline {
                 checkout scm
                 
                 script {
+                    // Afficher les informations du déclencheur
+                    echo """
+╔══════════════════════════════════════════════════════════════╗
+║                    🚀 BUILD TRIGGER INFO                     ║
+╚══════════════════════════════════════════════════════════════╝
+🔗 Build Cause: ${currentBuild.getBuildCauses()}
+📋 Triggered by: ${env.BUILD_CAUSE ?: 'Manual/Unknown'}
+🌐 GitHub Event: ${env.GITHUB_EVENT_NAME ?: 'N/A'}
+                    """
+                    
                     // Determine target environments based on branch
                     def branchName = env.GIT_BRANCH.replaceAll('origin/', '')
                     def environments = []
