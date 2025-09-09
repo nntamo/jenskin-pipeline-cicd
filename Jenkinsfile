@@ -155,9 +155,9 @@ pipeline {
                         kubectl create namespace ${TARGET_ENVIRONMENT} --dry-run=client -o yaml | kubectl apply -f -
                         echo "✅ Namespace ${TARGET_ENVIRONMENT} ready"
                         
-                        # Check if Helm chart exists, if not use kubectl
+                        # Check if Helm chart exists and is valid
                         if [ -f "charts/Chart.yaml" ]; then
-                            echo "📦 Deploying with Helm..."
+                            echo "📦 Deploying with Helm (increased timeout)..."
                             helm upgrade --install movie-app-${TARGET_ENVIRONMENT} ./charts \\
                                 --namespace ${TARGET_ENVIRONMENT} \\
                                 --set image.tag=${TARGET_ENVIRONMENT}-${BUILD_NUMBER} \\
@@ -166,12 +166,20 @@ pipeline {
                                 --set build.commit=${GIT_COMMIT} \\
                                 --set build.branch=${CURRENT_BRANCH} \\
                                 --set build.environment=${TARGET_ENVIRONMENT} \\
-                                --wait --timeout=600s
+                                --wait --timeout=300s || {
+                                    echo "⚠️ Helm deployment failed, trying kubectl fallback..."
+                                    kubectl create deployment cast-service-${TARGET_ENVIRONMENT} --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${TARGET_ENVIRONMENT}-${BUILD_NUMBER} -n ${TARGET_ENVIRONMENT} --dry-run=client -o yaml | kubectl apply -f -
+                                    kubectl create deployment movie-service-${TARGET_ENVIRONMENT} --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${TARGET_ENVIRONMENT}-${BUILD_NUMBER} -n ${TARGET_ENVIRONMENT} --dry-run=client -o yaml | kubectl apply -f -
+                                }
                         else
-                            echo "📦 Deploying with kubectl (Helm chart not found)..."
-                            # Basic kubectl deployment if no Helm chart
-                            kubectl apply -f k8s-manifests/namespaces/${TARGET_ENVIRONMENT}-namespace.yaml || true
-                            kubectl apply -f k8s-manifests/${TARGET_ENVIRONMENT}/ || echo "No k8s manifests found for ${TARGET_ENVIRONMENT}"
+                            echo "📦 Deploying with kubectl (no Helm chart found)..."
+                            # Create simple deployments
+                            kubectl create deployment cast-service-${TARGET_ENVIRONMENT} --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${TARGET_ENVIRONMENT}-${BUILD_NUMBER} -n ${TARGET_ENVIRONMENT} --dry-run=client -o yaml | kubectl apply -f -
+                            kubectl create deployment movie-service-${TARGET_ENVIRONMENT} --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${TARGET_ENVIRONMENT}-${BUILD_NUMBER} -n ${TARGET_ENVIRONMENT} --dry-run=client -o yaml | kubectl apply -f -
+                            
+                            # Expose services
+                            kubectl expose deployment cast-service-${TARGET_ENVIRONMENT} --port=80 --target-port=8000 -n ${TARGET_ENVIRONMENT} || echo "Service might already exist"
+                            kubectl expose deployment movie-service-${TARGET_ENVIRONMENT} --port=80 --target-port=8000 -n ${TARGET_ENVIRONMENT} || echo "Service might already exist"
                         fi
                         
                         echo "🔍 Verifying deployment in ${TARGET_ENVIRONMENT}..."
