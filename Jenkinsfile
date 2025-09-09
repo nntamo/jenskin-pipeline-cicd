@@ -179,7 +179,7 @@ pipeline {
         
         stage('Environment Testing') {
             when {
-                not { params.SKIP_TESTS }
+                expression { !params.SKIP_TESTS }
             }
             steps {
                 script {
