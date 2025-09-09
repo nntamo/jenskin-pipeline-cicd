@@ -259,16 +259,15 @@ pipeline {
     post {
         always {
             script {
-                echo '📦 Cleaning up...'
+                echo 'Cleaning up...'
                 
-                // ✅ CORRECTION: Wrap sh commands in node block
                 node {
                     // Clean up Docker resources
                     sh '''
-                        echo "🧹 Cleaning up Docker resources..."
+                        echo "Cleaning up Docker resources..."
                         docker image prune -f --filter "until=24h" || true
                         docker builder prune -f --filter "until=24h" || true
-                        echo "✅ Cleanup completed"
+                        echo "Cleanup completed"
                     '''
                 }
             }
@@ -276,62 +275,44 @@ pipeline {
         
         success {
             script {
-                echo '🎉 Pipeline completed successfully!'
-                
-                // ✅ CORRECTION: Use env variables and handle null values
-                def targetEnv = env.TARGET_ENVIRONMENT ?: 'unknown'
-                def currentBranch = env.CURRENT_BRANCH ?: env.GIT_BRANCH?.replaceAll('origin/', '') ?: 'unknown'
+                echo 'Pipeline completed successfully!'
                 
                 node {
-                    sh """
+                    sh '''
                         echo ""
                         echo "╔══════════════════════════════════════════════════════════════╗"
-                        echo "║               🎉 ${targetEnv.toUpperCase()} DEPLOYMENT SUCCESSFUL! 🎉               ║"
+                        echo "║                    🎉 DEPLOYMENT SUCCESSFUL! 🎉                    ║"
                         echo "╚══════════════════════════════════════════════════════════════╝"
                         echo ""
-                        echo "📋 Deployment Summary:"
-                        echo "├─ Environment: ${targetEnv}"
-                        echo "├─ Branch: ${currentBranch}"
-                        echo "├─ Build: ${BUILD_NUMBER}"
-                        echo "├─ Commit: ${GIT_COMMIT}"
-                        echo "└─ Registry: ${DOCKER_REGISTRY}/${IMAGE_NAME}"
+                        echo "✅ Build completed successfully"
+                        echo "📦 Docker images built and pushed to registry"
+                        echo "☸️  Deployment completed to target environment"
                         echo ""
-                        echo "📦 Environment Images:"
-                        echo "├─ ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${targetEnv}-${BUILD_NUMBER}"
-                        echo "└─ ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${targetEnv}-${BUILD_NUMBER}"
-                        echo ""
-                    """
+                    '''
                 }
                 
-                currentBuild.description = "✅ ${targetEnv.toUpperCase()} SUCCESS | Images: *-${targetEnv}-${BUILD_NUMBER}"
+                currentBuild.description = "✅ SUCCESS"
             }
         }
         
         failure {
             script {
-                echo '❌ Pipeline failed!'
-                
-                // ✅ CORRECTION: Use env variables and handle null values
-                def targetEnv = env.TARGET_ENVIRONMENT ?: 'unknown'
-                def currentBranch = env.CURRENT_BRANCH ?: env.GIT_BRANCH?.replaceAll('origin/', '') ?: 'unknown'
+                echo 'Pipeline failed!'
                 
                 node {
-                    sh """
+                    sh '''
                         echo ""
                         echo "╔══════════════════════════════════════════════════════════════╗"
-                        echo "║              ❌ ${targetEnv.toUpperCase()} DEPLOYMENT FAILED! ❌              ║"
+                        echo "║                    ❌ DEPLOYMENT FAILED! ❌                    ║"
                         echo "╚══════════════════════════════════════════════════════════════╝"
                         echo ""
-                        echo "💥 Build ${BUILD_NUMBER} failed for ${targetEnv}!"
-                        echo "├─ Branch: ${currentBranch}"
-                        echo "├─ Environment: ${targetEnv}"
-                        echo "├─ Commit: ${GIT_COMMIT}"
-                        echo "└─ Stage: Check Jenkins console output"
+                        echo "💥 Build failed - Check Jenkins console output for details"
+                        echo "🔍 Review the failed stage above for specific error messages"
                         echo ""
-                    """
+                    '''
                 }
                 
-                currentBuild.description = "❌ ${targetEnv.toUpperCase()} FAILED"
+                currentBuild.description = "❌ FAILED"
             }
         }
     }
