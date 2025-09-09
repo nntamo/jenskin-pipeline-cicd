@@ -111,8 +111,12 @@ pipeline {
                 script {
                     echo "🚀 Pushing images for ${env.TARGET_ENVIRONMENT} environment..."
                     
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-token') {
+                    // Use Docker commands directly with credentials
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-token', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh '''
+                            echo "📦 Logging into Docker registry..."
+                            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                            
                             echo "📦 Pushing ${TARGET_ENVIRONMENT} images to ${DOCKER_REGISTRY}/${IMAGE_NAME}..."
                             
                             # Push environment-specific versioned images
@@ -130,6 +134,9 @@ pipeline {
                             docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${TARGET_ENVIRONMENT}-latest
                             
                             echo "✅ All ${TARGET_ENVIRONMENT} images pushed successfully!"
+                            
+                            # Logout for security
+                            docker logout
                         '''
                     }
                 }
