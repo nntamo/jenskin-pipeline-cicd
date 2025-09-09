@@ -278,29 +278,32 @@ pipeline {
             script {
                 echo '🎉 Pipeline completed successfully!'
                 
-                // ✅ CORRECTION: Wrap sh commands in node block
+                // ✅ CORRECTION: Use env variables and handle null values
+                def targetEnv = env.TARGET_ENVIRONMENT ?: 'unknown'
+                def currentBranch = env.CURRENT_BRANCH ?: env.GIT_BRANCH?.replaceAll('origin/', '') ?: 'unknown'
+                
                 node {
                     sh """
                         echo ""
                         echo "╔══════════════════════════════════════════════════════════════╗"
-                        echo "║               🎉 ${TARGET_ENVIRONMENT.toUpperCase()} DEPLOYMENT SUCCESSFUL! 🎉               ║"
+                        echo "║               🎉 ${targetEnv.toUpperCase()} DEPLOYMENT SUCCESSFUL! 🎉               ║"
                         echo "╚══════════════════════════════════════════════════════════════╝"
                         echo ""
                         echo "📋 Deployment Summary:"
-                        echo "├─ Environment: ${TARGET_ENVIRONMENT}"
-                        echo "├─ Branch: ${CURRENT_BRANCH}"
+                        echo "├─ Environment: ${targetEnv}"
+                        echo "├─ Branch: ${currentBranch}"
                         echo "├─ Build: ${BUILD_NUMBER}"
                         echo "├─ Commit: ${GIT_COMMIT}"
                         echo "└─ Registry: ${DOCKER_REGISTRY}/${IMAGE_NAME}"
                         echo ""
                         echo "📦 Environment Images:"
-                        echo "├─ ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${TARGET_ENVIRONMENT}-${BUILD_NUMBER}"
-                        echo "└─ ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${TARGET_ENVIRONMENT}-${BUILD_NUMBER}"
+                        echo "├─ ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${targetEnv}-${BUILD_NUMBER}"
+                        echo "└─ ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${targetEnv}-${BUILD_NUMBER}"
                         echo ""
                     """
                 }
                 
-                currentBuild.description = "✅ ${env.TARGET_ENVIRONMENT.toUpperCase()} SUCCESS | Images: *-${env.TARGET_ENVIRONMENT}-${BUILD_NUMBER}"
+                currentBuild.description = "✅ ${targetEnv.toUpperCase()} SUCCESS | Images: *-${targetEnv}-${BUILD_NUMBER}"
             }
         }
         
@@ -308,24 +311,27 @@ pipeline {
             script {
                 echo '❌ Pipeline failed!'
                 
-                // ✅ CORRECTION: Wrap sh commands in node block
+                // ✅ CORRECTION: Use env variables and handle null values
+                def targetEnv = env.TARGET_ENVIRONMENT ?: 'unknown'
+                def currentBranch = env.CURRENT_BRANCH ?: env.GIT_BRANCH?.replaceAll('origin/', '') ?: 'unknown'
+                
                 node {
                     sh """
                         echo ""
                         echo "╔══════════════════════════════════════════════════════════════╗"
-                        echo "║              ❌ ${TARGET_ENVIRONMENT.toUpperCase()} DEPLOYMENT FAILED! ❌              ║"
+                        echo "║              ❌ ${targetEnv.toUpperCase()} DEPLOYMENT FAILED! ❌              ║"
                         echo "╚══════════════════════════════════════════════════════════════╝"
                         echo ""
-                        echo "💥 Build ${BUILD_NUMBER} failed for ${TARGET_ENVIRONMENT}!"
-                        echo "├─ Branch: ${CURRENT_BRANCH}"
-                        echo "├─ Environment: ${TARGET_ENVIRONMENT}"
+                        echo "💥 Build ${BUILD_NUMBER} failed for ${targetEnv}!"
+                        echo "├─ Branch: ${currentBranch}"
+                        echo "├─ Environment: ${targetEnv}"
                         echo "├─ Commit: ${GIT_COMMIT}"
                         echo "└─ Stage: Check Jenkins console output"
                         echo ""
                     """
                 }
                 
-                currentBuild.description = "❌ ${env.TARGET_ENVIRONMENT.toUpperCase()} FAILED"
+                currentBuild.description = "❌ ${targetEnv.toUpperCase()} FAILED"
             }
         }
     }
