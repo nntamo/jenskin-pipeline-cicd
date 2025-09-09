@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: movie-service
+  namespace: prod
+  labels:
+    app: movie-service
+spec:
+  selector:
+    app: movie-service
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
