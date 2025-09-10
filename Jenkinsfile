@@ -321,60 +321,65 @@ pipeline {
     }
 }
 
-// Function to deploy to a specific environment (SIMPLIFIÉ)
+// Function to deploy to a specific environment (FIXED)
 def deployToEnvironment(String environment) {
     echo "🚀 Deploying to ${environment.toUpperCase()} environment..."
     
-    sh """
-        echo "🔧 Preparing deployment to ${environment}..."
+    script {
+        // Get approver info safely
+        def approver = env.QA_APPROVED_BY ?: 'System'
         
-        # Create namespace if it doesn't exist
-        kubectl create namespace ${environment} --dry-run=client -o yaml | kubectl apply -f - || true
-        echo "✅ Namespace ${environment} ready"
-        
-        # Environment-specific configurations
-        case "${environment}" in
-            "dev")
-                REPLICA_COUNT=1
-                echo "🟢 DEV deployment - Automatic"
-                ;;
-            "qa")
-                REPLICA_COUNT=2
-                echo "🟡 QA deployment - Approved by ${QA_APPROVED_BY ?: 'System'}"
-                ;;
-        esac
-        
-        echo "📋 Environment: ${environment}"
-        echo "📊 Replica Count: \$REPLICA_COUNT"
-        
-        # Deploy with kubectl (simple approach)
-        echo "📦 Deploying services with kubectl..."
-        
-        # Create or update deployments
-        kubectl create deployment cast-service-${environment} \\
-            --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${BUILD_NUMBER} \\
-            -n ${environment} \\
-            --dry-run=client -o yaml | kubectl apply -f -
+        sh """
+            echo "🔧 Preparing deployment to ${environment}..."
             
-        kubectl create deployment movie-service-${environment} \\
-            --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${BUILD_NUMBER} \\
-            -n ${environment} \\
-            --dry-run=client -o yaml | kubectl apply -f -
-        
-        # Scale deployments
-        kubectl scale deployment cast-service-${environment} --replicas=\$REPLICA_COUNT -n ${environment}
-        kubectl scale deployment movie-service-${environment} --replicas=\$REPLICA_COUNT -n ${environment}
-        
-        # Expose services if they don't exist
-        kubectl expose deployment cast-service-${environment} --port=80 --target-port=8000 -n ${environment} || echo "ℹ️ Cast service already exposed"
-        kubectl expose deployment movie-service-${environment} --port=80 --target-port=8000 -n ${environment} || echo "ℹ️ Movie service already exposed"
-        
-        echo "🔍 Verifying deployment in ${environment}..."
-        kubectl get pods -n ${environment} -o wide
-        kubectl get services -n ${environment}
-        
-        echo "✅ Deployment to ${environment} completed!"
-    """
+            # Create namespace if it doesn't exist
+            kubectl create namespace ${environment} --dry-run=client -o yaml | kubectl apply -f - || true
+            echo "✅ Namespace ${environment} ready"
+            
+            # Environment-specific configurations
+            case "${environment}" in
+                "dev")
+                    REPLICA_COUNT=1
+                    echo "🟢 DEV deployment - Automatic"
+                    ;;
+                "qa")
+                    REPLICA_COUNT=2
+                    echo "🟡 QA deployment - Approved by ${approver}"
+                    ;;
+            esac
+            
+            echo "📋 Environment: ${environment}"
+            echo "📊 Replica Count: \$REPLICA_COUNT"
+            
+            # Deploy with kubectl (simple approach)
+            echo "📦 Deploying services with kubectl..."
+            
+            # Create or update deployments
+            kubectl create deployment cast-service-${environment} \\
+                --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${BUILD_NUMBER} \\
+                -n ${environment} \\
+                --dry-run=client -o yaml | kubectl apply -f -
+                
+            kubectl create deployment movie-service-${environment} \\
+                --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${BUILD_NUMBER} \\
+                -n ${environment} \\
+                --dry-run=client -o yaml | kubectl apply -f -
+            
+            # Scale deployments
+            kubectl scale deployment cast-service-${environment} --replicas=\$REPLICA_COUNT -n ${environment}
+            kubectl scale deployment movie-service-${environment} --replicas=\$REPLICA_COUNT -n ${environment}
+            
+            # Expose services if they don't exist
+            kubectl expose deployment cast-service-${environment} --port=80 --target-port=8000 -n ${environment} || echo "ℹ️ Cast service already exposed"
+            kubectl expose deployment movie-service-${environment} --port=80 --target-port=8000 -n ${environment} || echo "ℹ️ Movie service already exposed"
+            
+            echo "🔍 Verifying deployment in ${environment}..."
+            kubectl get pods -n ${environment} -o wide
+            kubectl get services -n ${environment}
+            
+            echo "✅ Deployment to ${environment} completed!"
+        """
+    }
 }
 
 // Function to validate environment deployment (SIMPLIFIÉ)
