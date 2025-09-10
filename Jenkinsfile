@@ -213,7 +213,7 @@ pipeline {
             }
         }
         
-        stage('🏭 Production Approval (Manual Only)') {
+        stage('🏭 PRODUCTION Approval Gate') {
             when {
                 allOf {
                     branch 'main'
@@ -224,27 +224,41 @@ pipeline {
             steps {
                 script {
                     timeout(time: 30, unit: 'MINUTES') {
-                        def deploymentDetails = """
-🚀 PRODUCTION DEPLOYMENT CONFIRMATION
+                        def productionApproval = input(
+                            message: """
+🚀 PRODUCTION DEPLOYMENT APPROVAL
 
 📋 Deployment Details:
-├─ Environment: PRODUCTION
+├─ Environment: PRODUCTION 🔴
 ├─ Build: #${BUILD_NUMBER}
 ├─ Branch: ${env.CURRENT_BRANCH}
 ├─ Commit: ${GIT_COMMIT}
-├─ Previous Environments: dev → qa → staging ✅
-└─ Images: Ready to deploy
+├─ DEV Environment: ✅ Deployed
+├─ QA Environment: ✅ Deployed & Approved by ${env.QA_APPROVED_BY ?: 'N/A'}
+├─ STAGING Environment: ✅ Deployed & Approved by ${env.STAGING_APPROVED_BY ?: 'N/A'}
+└─ All Tests: ✅ Passed
 
-⚠️ This will deploy to PRODUCTION environment.
-                        """
-                        
-                        def approval = input(
-                            message: deploymentDetails,
-                            ok: 'Deploy to Production',
-                            submitterParameter: 'DEPLOYER'
+⚠️ CRITICAL: This will deploy to LIVE PRODUCTION!
+🔒 Required: Manager/Lead approval
+                            """,
+                            ok: 'DEPLOY TO PRODUCTION',
+                            submitterParameter: 'PROD_DEPLOYER',
+                            submitter: 'prod-team,manager,admin',  // Qui peut approuver PROD
+                            parameters: [
+                                choice(name: 'DEPLOYMENT_TYPE', choices: ['Blue-Green', 'Rolling Update'], description: 'Select deployment strategy'),
+                                booleanParam(name: 'CONFIRM_PRODUCTION', defaultValue: false, description: 'I confirm this is intended for PRODUCTION')
+                            ]
                         )
                         
-                        echo "✅ Production deployment confirmed by: ${approval}"
+                        if (!productionApproval.CONFIRM_PRODUCTION) {
+                            error("❌ Production deployment cancelled - Confirmation required")
+                        }
+                        
+                        env.DEPLOYMENT_TYPE = productionApproval.DEPLOYMENT_TYPE
+                        env.PROD_APPROVED_BY = productionApproval.PROD_DEPLOYER
+                        echo "✅ PRODUCTION deployment approved by: ${productionApproval.PROD_DEPLOYER}"
+                        echo "📋 Deployment strategy: ${env.DEPLOYMENT_TYPE}"
+                        
                         deployToEnvironment('prod')
                     }
                 }
