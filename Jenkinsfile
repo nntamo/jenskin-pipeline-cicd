@@ -35,35 +35,35 @@ pipeline {
                     def branchName = env.GIT_BRANCH.replaceAll('origin/', '')
                     def environments = []
                     def runTests = true
-                    def deployQA = false
-                    def deployStaging = false
-                    def deployProd = false
+                    def canDeployQA = false
+                    def canDeployStaging = false
+                    def canDeployProd = false
                     
                     switch(branchName) {
                         case 'dev':
                         case 'develop':
                             environments = ['dev']
-                            deployQA = false
-                            deployStaging = false
+                            canDeployQA = false
+                            canDeployStaging = false
                             break
                         case 'qa':
                         case 'quality':
-                            environments = ['dev', 'qa']
-                            deployQA = true
-                            deployStaging = false
+                            environments = ['dev', 'qa']  // QA available but needs approval
+                            canDeployQA = true
+                            canDeployStaging = false
                             break
                         case 'staging':
                         case 'stage':
-                            environments = ['dev', 'qa', 'staging']
-                            deployQA = true
-                            deployStaging = true
+                            environments = ['dev', 'qa', 'staging']  // STAGING available but needs approval
+                            canDeployQA = true
+                            canDeployStaging = true
                             break
                         case 'main':
                         case 'master':
                             environments = ['dev', 'qa', 'staging', 'prod']  // PROD available but needs approval
-                            deployQA = true
-                            deployStaging = true
-                            deployProd = true  // Changed to true - but still needs manual approval
+                            canDeployQA = true
+                            canDeployStaging = true
+                            canDeployProd = true
                             break
                         default:
                             environments = ['dev']
@@ -73,9 +73,14 @@ pipeline {
                     env.TARGET_ENVIRONMENTS = environments.join(',')
                     env.CURRENT_BRANCH = branchName
                     env.RUN_TESTS = runTests.toString()
-                    env.DEPLOY_QA = deployQA.toString()
-                    env.DEPLOY_STAGING = deployStaging.toString()
-                    env.DEPLOY_PROD = deployProd.toString()
+                    env.CAN_DEPLOY_QA = canDeployQA.toString()
+                    env.CAN_DEPLOY_STAGING = canDeployStaging.toString()
+                    env.CAN_DEPLOY_PROD = canDeployProd.toString()
+                    
+                    // Initialize approval flags to false
+                    env.DEPLOY_QA = 'false'
+                    env.DEPLOY_STAGING = 'false' 
+                    env.DEPLOY_PROD = 'false'
                     
                     // Set dynamic build name
                     currentBuild.displayName = "#${BUILD_NUMBER}-${branchName}→[${environments.join('→')}]"
@@ -85,11 +90,12 @@ pipeline {
 ║                    🌍 DEPLOYMENT STRATEGY                     ║
 ╚══════════════════════════════════════════════════════════════╝
 📋 Branch: ${branchName}
-🎯 Environments: ${environments.join(' → ')}
+🎯 Available Environments: ${environments.join(' → ')}
 🧪 Run Tests: ${runTests}
-🔄 Auto Deploy QA: ${deployQA}
-🎭 Auto Deploy Staging: ${deployStaging}
-🏭 Auto Deploy Prod: ${deployProd}
+🟢 Auto Deploy DEV: ✅ (Always automatic)
+🟡 Can Deploy QA: ${canDeployQA ? '✅ (Requires approval)' : '❌'}
+🟠 Can Deploy STAGING: ${canDeployStaging ? '✅ (Requires approval)' : '❌'}
+🔴 Can Deploy PROD: ${canDeployProd ? '✅ (Requires approval)' : '❌'}
                     """
                     
                     // Validate basic project structure
@@ -181,12 +187,53 @@ pipeline {
         }
         
         stage('🚀 Deploy to DEV Environment') {
+            steps {
+                script {
+                    echo "🟢 DEV deployment is automatic - no approval required"
+                    deployToEnvironment('dev')
+                }
+            }
+        }
+        
+        // 🛑 QA APPROVAL GATE - NOUVEAU STAGE
+        stage('🛑 QA Approval Gate') {
             when {
-                expression { env.TARGET_ENVIRONMENTS.contains('dev') }
+                expression { env.CAN_DEPLOY_QA == 'true' }
             }
             steps {
                 script {
-                    deployToEnvironment('dev')
+                    timeout(time: 60, unit: 'MINUTES') {
+                        def qaApproval = input(
+                            message: """
+🧪 QA ENVIRONMENT DEPLOYMENT APPROVAL
+
+📋 Deployment Details:
+├─ Environment: QA 🟡  
+├─ Build: #${BUILD_NUMBER}
+├─ Branch: ${env.CURRENT_BRANCH}
+├─ Commit: ${GIT_COMMIT}
+├─ DEV Environment: ✅ Deployed Successfully
+└─ All Tests: ✅ Passed
+
+🔍 Please review DEV environment before approving QA deployment
+⚠️ This will deploy to QA environment for testing
+                            """,
+                            ok: 'APPROVE QA DEPLOYMENT',
+                            submitterParameter: 'QA_DEPLOYER',
+                            submitter: 'qa-team,dev-team,admin',  // Qui peut approuver QA
+                            parameters: [
+                                booleanParam(name: 'CONFIRM_QA', defaultValue: false, description: 'I confirm QA environment is ready for deployment')
+                            ]
+                        )
+                        
+                        if (!qaApproval.CONFIRM_QA) {
+                            error("❌ QA deployment cancelled - Confirmation required")
+                        }
+                        
+                        env.DEPLOY_QA = 'true'
+                        env.QA_APPROVED_BY = qaApproval.QA_DEPLOYER
+                        echo "✅ QA deployment approved by: ${qaApproval.QA_DEPLOYER}"
+                    }
                 }
             }
         }
@@ -202,6 +249,53 @@ pipeline {
             }
         }
         
+        // 🛑 STAGING APPROVAL GATE - NOUVEAU STAGE
+        stage('🛑 STAGING Approval Gate') {
+            when {
+                allOf {
+                    expression { env.CAN_DEPLOY_STAGING == 'true' }
+                    expression { env.DEPLOY_QA == 'true' } // QA doit être déployé d'abord
+                }
+            }
+            steps {
+                script {
+                    timeout(time: 60, unit: 'MINUTES') {
+                        def stagingApproval = input(
+                            message: """
+🎭 STAGING ENVIRONMENT DEPLOYMENT APPROVAL
+
+📋 Deployment Details:
+├─ Environment: STAGING 🟠
+├─ Build: #${BUILD_NUMBER}
+├─ Branch: ${env.CURRENT_BRANCH}
+├─ Commit: ${GIT_COMMIT}
+├─ DEV Environment: ✅ Deployed Successfully
+├─ QA Environment: ✅ Deployed & Approved by ${env.QA_APPROVED_BY ?: 'N/A'}
+└─ All Tests: ✅ Passed
+
+🔍 Please review QA environment before approving STAGING deployment
+⚠️ This will deploy to STAGING environment (pre-production)
+                            """,
+                            ok: 'APPROVE STAGING DEPLOYMENT',
+                            submitterParameter: 'STAGING_DEPLOYER',
+                            submitter: 'staging-team,qa-team,admin',  // Qui peut approuver STAGING
+                            parameters: [
+                                booleanParam(name: 'CONFIRM_STAGING', defaultValue: false, description: 'I confirm STAGING environment is ready for deployment')
+                            ]
+                        )
+                        
+                        if (!stagingApproval.CONFIRM_STAGING) {
+                            error("❌ STAGING deployment cancelled - Confirmation required")
+                        }
+                        
+                        env.DEPLOY_STAGING = 'true'
+                        env.STAGING_APPROVED_BY = stagingApproval.STAGING_DEPLOYER
+                        echo "✅ STAGING deployment approved by: ${stagingApproval.STAGING_DEPLOYER}"
+                    }
+                }
+            }
+        }
+        
         stage('🎭 Deploy to STAGING Environment') {
             when {
                 expression { env.DEPLOY_STAGING == 'true' }
@@ -213,12 +307,13 @@ pipeline {
             }
         }
         
-        stage('🏭 PRODUCTION Approval Gate') {
+        // 🛑 PRODUCTION APPROVAL GATE - MODIFIÉ
+        stage('🛑 PRODUCTION Approval Gate') {
             when {
                 allOf {
                     branch 'main'
-                    // Pour déployer en prod : changez cette ligne à true
-                    expression { env.DEPLOY_PROD == 'true' }
+                    expression { env.CAN_DEPLOY_PROD == 'true' }
+                    expression { env.DEPLOY_STAGING == 'true' } // STAGING doit être déployé d'abord
                 }
             }
             steps {
@@ -233,7 +328,7 @@ pipeline {
 ├─ Build: #${BUILD_NUMBER}
 ├─ Branch: ${env.CURRENT_BRANCH}
 ├─ Commit: ${GIT_COMMIT}
-├─ DEV Environment: ✅ Deployed
+├─ DEV Environment: ✅ Deployed Successfully
 ├─ QA Environment: ✅ Deployed & Approved by ${env.QA_APPROVED_BY ?: 'N/A'}
 ├─ STAGING Environment: ✅ Deployed & Approved by ${env.STAGING_APPROVED_BY ?: 'N/A'}
 └─ All Tests: ✅ Passed
@@ -255,12 +350,22 @@ pipeline {
                         }
                         
                         env.DEPLOYMENT_TYPE = productionApproval.DEPLOYMENT_TYPE
+                        env.DEPLOY_PROD = 'true'
                         env.PROD_APPROVED_BY = productionApproval.PROD_DEPLOYER
                         echo "✅ PRODUCTION deployment approved by: ${productionApproval.PROD_DEPLOYER}"
                         echo "📋 Deployment strategy: ${env.DEPLOYMENT_TYPE}"
-                        
-                        deployToEnvironment('prod')
                     }
+                }
+            }
+        }
+        
+        stage('🏭 Deploy to PRODUCTION Environment') {
+            when {
+                expression { env.DEPLOY_PROD == 'true' }
+            }
+            steps {
+                script {
+                    deployToEnvironment('prod')
                 }
             }
         }
@@ -271,11 +376,22 @@ pipeline {
             }
             steps {
                 script {
-                    def environments = env.TARGET_ENVIRONMENTS.split(',')
+                    // Only validate environments that were actually deployed
+                    def deployedEnvironments = ['dev'] // DEV is always deployed
                     
-                    echo "🧪 Running post-deployment validation across environments..."
+                    if (env.DEPLOY_QA == 'true') {
+                        deployedEnvironments.add('qa')
+                    }
+                    if (env.DEPLOY_STAGING == 'true') {
+                        deployedEnvironments.add('staging')
+                    }
+                    if (env.DEPLOY_PROD == 'true') {
+                        deployedEnvironments.add('prod')
+                    }
                     
-                    for (environment in environments) {
+                    echo "🧪 Running post-deployment validation for: ${deployedEnvironments.join(', ')}"
+                    
+                    for (environment in deployedEnvironments) {
                         validateEnvironment(environment)
                     }
                 }
@@ -299,19 +415,23 @@ pipeline {
         
         success {
             script {
-                def environments = env.TARGET_ENVIRONMENTS.split(',')
+                // Show only deployed environments
+                def deployedEnvironments = ['dev']
+                if (env.DEPLOY_QA == 'true') deployedEnvironments.add('qa')
+                if (env.DEPLOY_STAGING == 'true') deployedEnvironments.add('staging')
+                if (env.DEPLOY_PROD == 'true') deployedEnvironments.add('prod')
                 
-                echo 'Auto CI/CD Pipeline completed successfully!'
+                echo 'CI/CD Pipeline completed successfully!'
                 
                 sh """
                     echo ""
                     echo "╔══════════════════════════════════════════════════════════════╗"
-                    echo "║                🎉 AUTO DEPLOYMENT SUCCESSFUL! 🎉            ║"
+                    echo "║                🎉 DEPLOYMENT SUCCESSFUL! 🎉                 ║"
                     echo "╚══════════════════════════════════════════════════════════════╝"
                     echo ""
                     echo "✅ Build completed automatically after commit"
                     echo "📦 Docker images built and pushed to registry"
-                    echo "☸️  Auto-deployments completed to: ${environments.join(' → ')}"
+                    echo "☸️  Deployed to: ${deployedEnvironments.join(' → ')}"
                     echo "🏷️  Build: #${BUILD_NUMBER}"
                     echo "🌿 Branch: ${env.CURRENT_BRANCH}"
                     echo ""
@@ -319,26 +439,33 @@ pipeline {
                     echo ""
                 """
                 
-                currentBuild.description = "✅ AUTO SUCCESS: ${environments.join(' → ')}"
+                currentBuild.description = "✅ SUCCESS: ${deployedEnvironments.join(' → ')}"
             }
         }
         
         failure {
             script {
-                echo 'Auto CI/CD Pipeline failed!'
+                echo 'CI/CD Pipeline failed!'
                 
                 sh '''
                     echo ""
                     echo "╔══════════════════════════════════════════════════════════════╗"
-                    echo "║                  ❌ AUTO DEPLOYMENT FAILED! ❌               ║"
+                    echo "║                  ❌ DEPLOYMENT FAILED! ❌                    ║"
                     echo "╚══════════════════════════════════════════════════════════════╝"
                     echo ""
-                    echo "💥 Auto build failed - Check Jenkins console output"
+                    echo "💥 Build failed - Check Jenkins console output"
                     echo "🔍 Review the failed stage above for specific error messages"
                     echo ""
                 '''
                 
-                currentBuild.description = "❌ AUTO FAILED"
+                currentBuild.description = "❌ FAILED"
+            }
+        }
+        
+        aborted {
+            script {
+                echo 'Pipeline was aborted (likely due to approval timeout or cancellation)'
+                currentBuild.description = "⏹️ ABORTED - Manual intervention required"
             }
         }
     }
@@ -346,10 +473,10 @@ pipeline {
 
 // Function to deploy to a specific environment
 def deployToEnvironment(String environment) {
-    echo "🚀 Auto-deploying to ${environment.toUpperCase()} environment..."
+    echo "🚀 Deploying to ${environment.toUpperCase()} environment..."
     
     sh """
-        echo "🔧 Preparing auto-deployment to ${environment}..."
+        echo "🔧 Preparing deployment to ${environment}..."
         
         # Create namespace if it doesn't exist
         kubectl create namespace ${environment} --dry-run=client -o yaml | kubectl apply -f -
@@ -360,18 +487,22 @@ def deployToEnvironment(String environment) {
             "dev")
                 REPLICA_COUNT=1
                 RESOURCE_LIMITS="--requests=cpu=100m,memory=128Mi --limits=cpu=200m,memory=256Mi"
+                echo "🟢 DEV deployment - Automatic"
                 ;;
             "qa")
                 REPLICA_COUNT=1
                 RESOURCE_LIMITS="--requests=cpu=100m,memory=128Mi --limits=cpu=300m,memory=512Mi"
+                echo "🟡 QA deployment - Approved by ${QA_APPROVED_BY}"
                 ;;
             "staging")
                 REPLICA_COUNT=2
                 RESOURCE_LIMITS="--requests=cpu=200m,memory=256Mi --limits=cpu=500m,memory=1Gi"
+                echo "🟠 STAGING deployment - Approved by ${STAGING_APPROVED_BY}"
                 ;;
             "prod")
                 REPLICA_COUNT=3
                 RESOURCE_LIMITS="--requests=cpu=500m,memory=512Mi --limits=cpu=1000m,memory=2Gi"
+                echo "🔴 PRODUCTION deployment - Approved by ${PROD_APPROVED_BY}"
                 ;;
         esac
         
@@ -381,7 +512,7 @@ def deployToEnvironment(String environment) {
         
         # Check if Helm chart exists and is valid
         if [ -f "charts/Chart.yaml" ]; then
-            echo "📦 Auto-deploying with Helm..."
+            echo "📦 Deploying with Helm..."
             helm upgrade --install movie-app-${environment} ./charts \\
                 --namespace ${environment} \\
                 --set image.tag=${BUILD_NUMBER} \\
@@ -399,7 +530,7 @@ def deployToEnvironment(String environment) {
                     kubectl scale deployment movie-service-${environment} --replicas=\$REPLICA_COUNT -n ${environment}
                 }
         else
-            echo "📦 Auto-deploying with kubectl..."
+            echo "📦 Deploying with kubectl..."
             # Create deployments with environment-specific replicas
             kubectl create deployment cast-service-${environment} --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${BUILD_NUMBER} -n ${environment} --dry-run=client -o yaml | kubectl apply -f -
             kubectl create deployment movie-service-${environment} --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${BUILD_NUMBER} -n ${environment} --dry-run=client -o yaml | kubectl apply -f -
@@ -413,17 +544,17 @@ def deployToEnvironment(String environment) {
             kubectl expose deployment movie-service-${environment} --port=80 --target-port=8000 -n ${environment} || echo "Service might already exist"
         fi
         
-        echo "🔍 Verifying auto-deployment in ${environment}..."
+        echo "🔍 Verifying deployment in ${environment}..."
         kubectl get pods -n ${environment} -o wide
         kubectl get services -n ${environment}
         
-        echo "✅ Auto-deployment to ${environment} completed!"
+        echo "✅ Deployment to ${environment} completed!"
     """
 }
 
 // Function to validate environment deployment
 def validateEnvironment(String environment) {
-    echo "🧪 Auto-validating ${environment.toUpperCase()} environment..."
+    echo "🧪 Validating ${environment.toUpperCase()} environment..."
     
     sh """
         echo "⏳ Waiting for pods to be ready in ${environment}..."
