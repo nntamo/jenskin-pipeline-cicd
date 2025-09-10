@@ -60,10 +60,10 @@ pipeline {
                             break
                         case 'main':
                         case 'master':
-                            environments = ['dev', 'qa', 'staging']  // PROD nécessite approbation manuelle
+                            environments = ['dev', 'qa', 'staging', 'prod']  // PROD available but needs approval
                             deployQA = true
                             deployStaging = true
-                            deployProd = false  // Sécurité : pas de déploiement auto en prod
+                            deployProd = true  // Changed to true - but still needs manual approval
                             break
                         default:
                             environments = ['dev']
