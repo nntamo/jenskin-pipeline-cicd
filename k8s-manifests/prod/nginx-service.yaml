@@ -1,15 +1,39 @@
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: nginx-proxy
+#   namespace: prod
+#   labels:
+#     app: nginx-proxy
+# spec:
+#   selector:
+#     app: nginx-proxy
+#   ports:
+#   - protocol: TCP
+#     port: 80
+#     targetPort: 80
+#   type: LoadBalancer
+
+# ============================================
+# FICHIER: nginx-service.yaml
+# ============================================
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-proxy
+  name: nginx-service
   namespace: prod
   labels:
-    app: nginx-proxy
+    app: nginx
+    environment: prod
+    tier: frontend
 spec:
-  selector:
-    app: nginx-proxy
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 80
   type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: nginx
+    environment: prod
+  sessionAffinity: None

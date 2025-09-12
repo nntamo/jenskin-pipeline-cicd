@@ -1,407 +1,379 @@
 pipeline {
-    agent any
-    
-    triggers {
-        // Déclenchement automatique à chaque push
-        githubPush()
-        pollSCM('H/5 * * * *')  // Backup toutes les 5 minutes
+  environment {
+    DOCKER_ID = "nguetsop" // remplacez par votre docker-id
+    MOVIE_IMAGE = "movie-service"
+    CAST_IMAGE = "cast-service"
+    DOCKER_TAG = "v.${BUILD_ID}.0"
+  }
+  agent any
+  stages {
+    stage('Docker Build') {
+      steps {
+        script {
+          sh '''
+          echo "Building Movie and Cast Services..."
+          
+          # Clean up existing containers
+          docker rm -f movie-service || true
+          docker rm -f cast-service || true
+          
+          # Build movie-service
+          echo "Building Movie Service..."
+          cd movie-service
+          docker build -t $DOCKER_ID/$MOVIE_IMAGE:$DOCKER_TAG .
+          cd ..
+          
+          # Build cast-service
+          echo "Building Cast Service..."
+          cd cast-service
+          docker build -t $DOCKER_ID/$CAST_IMAGE:$DOCKER_TAG .
+          cd ..
+          
+          echo "Both services built successfully"
+          sleep 6
+          '''
+        }
+      }
     }
     
-    environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-token')
-        DOCKER_REGISTRY = 'nguetsop'
-        IMAGE_NAME = 'jenskin-cicd-projekt'
-        KUBECONFIG = credentials('kubeconfig')
-        DOCKER_BUILDKIT = '1'
-    }
-    
-    stages {
-        stage('🔍 Environment Detection & Setup') {
-            steps {
-                echo 'Auto-detecting deployment environments based on branch...'
-                checkout scm
-                
-                script {
-                    // Afficher les informations du déclencheur
-                    echo """
-╔══════════════════════════════════════════════════════════════╗
-║                🚀 AUTO CI/CD PIPELINE STARTED 🚀            ║
-╚══════════════════════════════════════════════════════════════╝
-🔗 Build Cause: ${currentBuild.getBuildCauses()}
-🌐 Triggered automatically after commit
-                    """
-                    
-                    // Determine target environments based on branch (SIMPLIFIÉ)
-                    def branchName = env.GIT_BRANCH.replaceAll('origin/', '')
-                    def environments = []
-                    def canDeployQA = false
-                    
-                    switch(branchName) {
-                        case 'dev':
-                        case 'develop':
-                            environments = ['dev']
-                            canDeployQA = false
-                            break
-                        case 'qa':
-                        case 'quality':
-                        case 'main':
-                        case 'master':
-                            environments = ['dev', 'qa']
-                            canDeployQA = true
-                            break
-                        default:
-                            environments = ['dev']
-                    }
-                    
-                    // Store environment variables
-                    env.TARGET_ENVIRONMENTS = environments.join(',')
-                    env.CURRENT_BRANCH = branchName
-                    env.CAN_DEPLOY_QA = canDeployQA.toString()
-                    
-                    // Initialize approval flags
-                    env.DEPLOY_QA = 'false'
-                    
-                    // Set dynamic build name
-                    currentBuild.displayName = "#${BUILD_NUMBER}-${branchName}→[${environments.join('→')}]"
-                    
-                    echo """
-╔══════════════════════════════════════════════════════════════╗
-║                    🌍 DEPLOYMENT STRATEGY                     ║
-╚══════════════════════════════════════════════════════════════╝
-📋 Branch: ${branchName}
-🎯 Target Environments: ${environments.join(' → ')}
-🟢 Auto Deploy DEV: ✅ (Always automatic)
-🟡 Can Deploy QA: ${canDeployQA ? '✅ (Requires approval)' : '❌'}
-                    """
-                    
-                    // Validate basic project structure
-                    sh '''
-                        echo "🔍 Validating project structure..."
-                        [ -f "cast-service/Dockerfile" ] || { echo "❌ cast-service Dockerfile missing"; exit 1; }
-                        [ -f "movie-service/Dockerfile" ] || { echo "❌ movie-service Dockerfile missing"; exit 1; }
-                        echo "✅ Basic project structure validation passed"
-                    '''
-                }
-            }
-        }
-        
-        stage('🔨 Build & Package Docker Images') {
-            steps {
-                script {
-                    echo "🔨 Building Docker images for multi-environment deployment..."
-                    
-                    sh '''
-                        export DOCKER_BUILDKIT=1
-                        
-                        echo "🔨 Building cast-service image..."
-                        docker build \
-                            --tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${BUILD_NUMBER} \
-                            --tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-latest \
-                            --label "build.number=${BUILD_NUMBER}" \
-                            --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                            --label "git.commit=${GIT_COMMIT}" \
-                            --label "git.branch=${CURRENT_BRANCH}" \
-                            --label "service.name=cast-service" \
-                            ./cast-service
-                        
-                        echo "🔨 Building movie-service image..."
-                        docker build \
-                            --tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${BUILD_NUMBER} \
-                            --tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-latest \
-                            --label "build.number=${BUILD_NUMBER}" \
-                            --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                            --label "git.commit=${GIT_COMMIT}" \
-                            --label "git.branch=${CURRENT_BRANCH}" \
-                            --label "service.name=movie-service" \
-                            ./movie-service
-                        
-                        echo "✅ Docker images built successfully!"
-                        echo "📦 Images created:"
-                        echo "   - ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${BUILD_NUMBER}"
-                        echo "   - ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${BUILD_NUMBER}"
-                        
-                        docker images | grep ${IMAGE_NAME} || true
-                    '''
-                }
-            }
-        }
-        
-        stage('📦 Push to Container Registry') {
-            steps {
-                script {
-                    echo "🚀 Pushing images to container registry..."
-                    
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-token', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh '''
-                            echo "📦 Logging into Docker registry..."
-                            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                            
-                            echo "📦 Pushing images to ${DOCKER_REGISTRY}/${IMAGE_NAME}..."
-                            
-                            # Push versioned images
-                            echo "├─ Pushing cast-service-${BUILD_NUMBER}..."
-                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${BUILD_NUMBER}
-                            
-                            echo "├─ Pushing movie-service-${BUILD_NUMBER}..."
-                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${BUILD_NUMBER}
-                            
-                            # Push latest tags
-                            echo "├─ Pushing cast-service-latest..."
-                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-latest
-                            
-                            echo "└─ Pushing movie-service-latest..."
-                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-latest
-                            
-                            echo "✅ All images pushed successfully!"
-                            
-                            # Logout for security
-                            docker logout
-                        '''
-                    }
-                }
-            }
-        }
-        
-        stage('🚀 Deploy to DEV Environment') {
-            steps {
-                script {
-                    echo "🟢 DEV deployment is automatic - no approval required"
-                    deployToEnvironment('dev')
-                }
-            }
-        }
-        
-        stage('🛑 QA Approval Gate') {
-            when {
-                expression { env.CAN_DEPLOY_QA == 'true' }
-            }
-            steps {
-                script {
-                    timeout(time: 60, unit: 'MINUTES') {
-                        try {
-                            def qaApproval = input(
-                                message: """
-🧪 QA ENVIRONMENT DEPLOYMENT APPROVAL
 
-📋 Deployment Details:
-├─ Environment: QA 🟡  
-├─ Build: #${BUILD_NUMBER}
-├─ Branch: ${env.CURRENT_BRANCH}
-├─ Commit: ${GIT_COMMIT}
-├─ DEV Environment: ✅ Deployed Successfully
-└─ All Tests: ✅ Passed
-
-🔍 Please review DEV environment before approving QA deployment
-⚠️ This will deploy to QA environment for testing
-                                """,
-                                ok: 'APPROVE QA DEPLOYMENT',
-                                submitterParameter: 'QA_DEPLOYER',
-                                submitter: 'qa-team,dev-team,admin',
-                                parameters: [
-                                    booleanParam(name: 'CONFIRM_QA', defaultValue: false, description: 'I confirm QA environment is ready for deployment')
-                                ]
-                            )
-                            
-                            if (!qaApproval.CONFIRM_QA) {
-                                error("❌ QA deployment cancelled - Confirmation required")
-                            }
-                            
-                            env.DEPLOY_QA = 'true'
-                            env.QA_APPROVED_BY = qaApproval.QA_DEPLOYER ?: 'Unknown'
-                            echo "✅ QA deployment approved by: ${env.QA_APPROVED_BY}"
-                            
-                        } catch (Exception e) {
-                            echo "⚠️ QA approval timeout or cancelled: ${e.getMessage()}"
-                            env.DEPLOY_QA = 'false'
-                            currentBuild.result = 'ABORTED'
-                        }
-                    }
-                }
-            }
+    
+    stage('Docker Push') {
+      environment {
+        DOCKER_PASS = credentials("dockerhub-token")
+      }
+      steps {
+        script {
+          retry(3) {
+            sh '''
+            echo "Pushing both images to Docker Hub..."
+            echo $DOCKER_PASS | docker login -u $DOCKER_ID --password-stdin
+            
+            # Push Movie Service
+            docker push $DOCKER_ID/$MOVIE_IMAGE:$DOCKER_TAG
+            
+            # Push Cast Service
+            docker push $DOCKER_ID/$CAST_IMAGE:$DOCKER_TAG
+            
+            echo "Both images pushed successfully"
+            '''
+          }
         }
-        
-        stage('🧪 Deploy to QA Environment') {
-            when {
-                expression { env.DEPLOY_QA == 'true' }
-            }
-            steps {
-                script {
-                    deployToEnvironment('qa')
-                }
-            }
-        }
-        
-        stage('✅ Post-Deployment Validation') {
-            steps {
-                script {
-                    // Only validate environments that were actually deployed
-                    def deployedEnvironments = ['dev'] // DEV is always deployed
-                    
-                    if (env.DEPLOY_QA == 'true') {
-                        deployedEnvironments.add('qa')
-                    }
-                    
-                    echo "🧪 Running post-deployment validation for: ${deployedEnvironments.join(', ')}"
-                    
-                    for (environment in deployedEnvironments) {
-                        validateEnvironment(environment)
-                    }
-                }
-            }
-        }
+      }
     }
     
-    post {
-        always {
-            script {
-                echo 'Cleaning up resources...'
-                
-                sh '''
-                    echo "🧹 Cleaning up Docker resources..."
-                    docker image prune -f --filter "until=24h" || true
-                    docker builder prune -f --filter "until=24h" || true
-                    echo "✅ Cleanup completed"
-                '''
-            }
+    stage('Create K8s Secrets') {
+      environment {
+        KUBECONFIG = credentials("config")
+        DOCKER_PASS = credentials("DOCKER_HUB_PASS")
+        MOVIE_DB_PASS = credentials("MOVIE_DB_PASSWORD")
+        CAST_DB_PASS = credentials("CAST_DB_PASSWORD")
+      }
+      steps {
+        script {
+          sh '''
+          rm -Rf .kube
+          mkdir .kube
+          cat $KUBECONFIG > .kube/config
+          
+          echo "Creating secrets for all environments..."
+          
+          for env in dev qa staging prod; do
+            echo "Creating secrets for $env environment..."
+            
+            # Create Docker registry secret
+            kubectl create secret docker-registry dockerhub-secret \
+              --docker-server=docker.io \
+              --docker-username=$DOCKER_ID \
+              --docker-password=$DOCKER_PASS \
+              --docker-email=nntamo06@gmail.com \
+              -n $env --dry-run=client -o yaml | kubectl apply -f -
+            
+            # Create database secrets with environment-specific passwords
+            kubectl create secret generic movie-db-secret \
+              --from-literal=POSTGRES_USER=movie_db_username \
+              --from-literal=POSTGRES_PASSWORD=${MOVIE_DB_PASS}_${env} \
+              --from-literal=POSTGRES_DB=movie_db_${env} \
+              --from-literal=DATABASE_URI=postgresql://movie_db_username:${MOVIE_DB_PASS}_${env}@movie-db:5432/movie_db_${env} \
+              --namespace=$env --dry-run=client -o yaml | kubectl apply -f -
+            
+            kubectl create secret generic cast-db-secret \
+              --from-literal=POSTGRES_USER=cast_db_username \
+              --from-literal=POSTGRES_PASSWORD=${CAST_DB_PASS}_${env} \
+              --from-literal=POSTGRES_DB=cast_db_${env} \
+              --from-literal=DATABASE_URI=postgresql://cast_db_username:${CAST_DB_PASS}_${env}@cast-db:5432/cast_db_${env} \
+              --namespace=$env --dry-run=client -o yaml | kubectl apply -f -
+              
+            echo "Secrets created for $env"
+          done
+          '''
         }
-        
-        success {
-            script {
-                // Show only deployed environments
-                def deployedEnvironments = ['dev']
-                if (env.DEPLOY_QA == 'true') deployedEnvironments.add('qa')
-                
-                echo 'CI/CD Pipeline completed successfully!'
-                
-                sh """
-                    echo ""
-                    echo "╔══════════════════════════════════════════════════════════════╗"
-                    echo "║                🎉 DEPLOYMENT SUCCESSFUL! 🎉                 ║"
-                    echo "╚══════════════════════════════════════════════════════════════╝"
-                    echo ""
-                    echo "✅ Build completed automatically after commit"
-                    echo "📦 Docker images built and pushed to registry"
-                    echo "☸️  Deployed to: ${deployedEnvironments.join(' → ')}"
-                    echo "🏷️  Build: #${BUILD_NUMBER}"
-                    echo "🌿 Branch: ${env.CURRENT_BRANCH}"
-                    echo ""
-                    echo "🚀 Next commit will trigger this pipeline automatically!"
-                    echo ""
-                """
-                
-                currentBuild.description = "✅ SUCCESS: ${deployedEnvironments.join(' → ')}"
-            }
-        }
-        
-        failure {
-            script {
-                echo 'CI/CD Pipeline failed!'
-                
-                sh '''
-                    echo ""
-                    echo "╔══════════════════════════════════════════════════════════════╗"
-                    echo "║                  ❌ DEPLOYMENT FAILED! ❌                    ║"
-                    echo "╚══════════════════════════════════════════════════════════════╝"
-                    echo ""
-                    echo "💥 Build failed - Check Jenkins console output"
-                    echo "🔍 Review the failed stage above for specific error messages"
-                    echo ""
-                '''
-                
-                currentBuild.description = "❌ FAILED"
-            }
-        }
-        
-        aborted {
-            script {
-                echo 'Pipeline was aborted (likely due to approval timeout or cancellation)'
-                currentBuild.description = "⏹️ ABORTED - Manual intervention required"
-            }
-        }
+      }
     }
-}
-
-// Function to deploy to a specific environment (FIXED)
-def deployToEnvironment(String environment) {
-    echo "🚀 Deploying to ${environment.toUpperCase()} environment..."
     
-    script {
-        // Get approver info safely
-        def approver = env.QA_APPROVED_BY ?: 'System'
-        
-        sh """
-            echo "🔧 Preparing deployment to ${environment}..."
+    stage('Deployment in dev') {
+      environment {
+        KUBECONFIG = credentials("config")
+      }
+      steps {
+        script {
+          sh '''
+          rm -Rf .kube
+          mkdir .kube
+          cat $KUBECONFIG > .kube/config
+          
+          echo "Deploying to DEV environment..."
+          
+          # Option 1: Using Helm Charts (if you prefer)
+          if [ -d "charts" ]; then
+            echo "Using Helm deployment..."
+            cp charts/values-dev.yaml values.yml
+            sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
+            sed -i "s+movieService:.*repository.*+movieService.repository: ${DOCKER_ID}/${MOVIE_IMAGE}+g" values.yml
+            sed -i "s+castService:.*repository.*+castService.repository: ${DOCKER_ID}/${CAST_IMAGE}+g" values.yml
+            helm upgrade --install movie-cast-app charts --values=values.yml --namespace dev
+          else
+            # Option 2: Using K8s manifests (your current setup)
+            echo "Using K8s manifests deployment..."
             
-            # Create namespace if it doesn't exist
-            kubectl create namespace ${environment} --dry-run=client -o yaml | kubectl apply -f - || true
-            echo "✅ Namespace ${environment} ready"
+            # Update image tags in deployments
+            sed -i "s|image: movie-service:.*|image: ${DOCKER_ID}/${MOVIE_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/dev/movie-deployment.yaml
+            sed -i "s|image: cast-service:.*|image: ${DOCKER_ID}/${CAST_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/dev/cast-deployment.yaml
             
-            # Environment-specific configurations
-            case "${environment}" in
-                "dev")
-                    REPLICA_COUNT=1
-                    echo "🟢 DEV deployment - Automatic"
-                    ;;
-                "qa")
-                    REPLICA_COUNT=2
-                    echo "🟡 QA deployment - Approved by ${approver}"
-                    ;;
-            esac
+            # Apply all manifests
+            kubectl apply -f k8s-manifests/namespaces/dev-namespace.yaml
+            kubectl apply -f k8s-manifests/dev/
             
-            echo "📋 Environment: ${environment}"
-            echo "📊 Replica Count: \$REPLICA_COUNT"
-            
-            # Deploy with kubectl (simple approach)
-            echo "📦 Deploying services with kubectl..."
-            
-            # Create or update deployments
-            kubectl create deployment cast-service-${environment} \\
-                --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:cast-service-${BUILD_NUMBER} \\
-                -n ${environment} \\
-                --dry-run=client -o yaml | kubectl apply -f -
-                
-            kubectl create deployment movie-service-${environment} \\
-                --image=${DOCKER_REGISTRY}/${IMAGE_NAME}:movie-service-${BUILD_NUMBER} \\
-                -n ${environment} \\
-                --dry-run=client -o yaml | kubectl apply -f -
-            
-            # Scale deployments
-            kubectl scale deployment cast-service-${environment} --replicas=\$REPLICA_COUNT -n ${environment}
-            kubectl scale deployment movie-service-${environment} --replicas=\$REPLICA_COUNT -n ${environment}
-            
-            # Expose services if they don't exist
-            kubectl expose deployment cast-service-${environment} --port=80 --target-port=8000 -n ${environment} || echo "ℹ️ Cast service already exposed"
-            kubectl expose deployment movie-service-${environment} --port=80 --target-port=8000 -n ${environment} || echo "ℹ️ Movie service already exposed"
-            
-            echo "🔍 Verifying deployment in ${environment}..."
-            kubectl get pods -n ${environment} -o wide
-            kubectl get services -n ${environment}
-            
-            echo "✅ Deployment to ${environment} completed!"
-        """
+            # Wait for deployments
+            kubectl rollout status deployment/movie-service -n dev --timeout=300s
+            kubectl rollout status deployment/cast-service -n dev --timeout=300s
+          fi
+          
+          echo "Deployed to DEV environment successfully"
+          '''
+        }
+      }
     }
-}
-
-// Function to validate environment deployment (SIMPLIFIÉ)
-def validateEnvironment(String environment) {
-    echo "🧪 Validating ${environment.toUpperCase()} environment..."
     
-    sh """
-        echo "⏳ Waiting for pods to be ready in ${environment}..."
-        kubectl wait --for=condition=ready pod -n ${environment} --timeout=300s --all || echo "⚠️ Timeout waiting for pods"
-        
-        echo "🏥 Performing health checks for ${environment}..."
-        kubectl get pods -n ${environment} -o wide
-        
-        # Check if pods are running
-        RUNNING_PODS=\$(kubectl get pods -n ${environment} --field-selector=status.phase=Running -o name 2>/dev/null | wc -l)
-        if [ \$RUNNING_PODS -gt 0 ]; then
-            echo "✅ \$RUNNING_PODS pod(s) running successfully in ${environment}"
-        else
-            echo "⚠️ No pods running in ${environment} - checking pod status"
-            kubectl describe pods -n ${environment} || true
-        fi
-        
-        echo "✅ ${environment} environment validation completed"
-    """
+    stage('Promotion to QA') {
+      steps {
+        timeout(time: 30, unit: "MINUTES") {
+          input message: 'DEV environment validated. Merge to QA branch and deploy to QA?', ok: 'Deploy to QA'
+        }
+        script {
+          withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+            sh '''
+            echo "Promoting to QA environment..."
+            git config user.name "Jenkins"
+            git config user.email "jenkins@datascientest.com"
+            git config credential.helper store
+            echo "https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com" > ~/.git-credentials
+            
+            git fetch origin
+            
+            if git show-ref --verify --quiet refs/remotes/origin/qa; then
+                git checkout -B qa origin/qa
+            else
+                git checkout -B qa
+            fi
+            
+            git merge origin/main --no-ff -m "Merge origin/main to qa - Build ${BUILD_ID}"
+            git push origin qa
+            echo "Successfully merged origin/main to qa"
+            rm -f ~/.git-credentials
+            '''
+          }
+        }
+      }
+    }
+    
+    stage('Deployment in qa') {
+      environment {
+        KUBECONFIG = credentials("config")
+      }
+      steps {
+        script {
+          sh '''
+          rm -Rf .kube
+          mkdir .kube
+          cat $KUBECONFIG > .kube/config
+          
+          echo "Deploying to QA environment..."
+          
+          if [ -d "charts" ]; then
+            cp charts/values-qa.yaml values.yml
+            sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
+            sed -i "s+movieService:.*repository.*+movieService.repository: ${DOCKER_ID}/${MOVIE_IMAGE}+g" values.yml
+            sed -i "s+castService:.*repository.*+castService.repository: ${DOCKER_ID}/${CAST_IMAGE}+g" values.yml
+            helm upgrade --install movie-cast-app charts --values=values.yml --namespace qa
+          else
+            sed -i "s|image: movie-service:.*|image: ${DOCKER_ID}/${MOVIE_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/qa/movie-deployment.yaml
+            sed -i "s|image: cast-service:.*|image: ${DOCKER_ID}/${CAST_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/qa/cast-deployment.yaml
+            
+            kubectl apply -f k8s-manifests/namespaces/qa-namespace.yaml
+            kubectl apply -f k8s-manifests/qa/
+            
+            kubectl rollout status deployment/movie-service -n qa --timeout=300s
+            kubectl rollout status deployment/cast-service -n qa --timeout=300s
+          fi
+          
+          echo "Deployed to QA environment successfully"
+          '''
+        }
+      }
+    }
+    
+    stage('Promotion to STAGING') {
+      steps {
+        timeout(time: 30, unit: "MINUTES") {
+          input message: 'QA environment validated. Merge to STAGING branch and deploy to STAGING?', ok: 'Deploy to STAGING'
+        }
+        script {
+          withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+            sh '''
+            echo "Promoting to STAGING environment..."
+            git config user.name "Jenkins"
+            git config user.email "jenkins@datascientest.com"
+            git config credential.helper store
+            echo "https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com" > ~/.git-credentials
+            
+            git fetch origin
+            
+            if git show-ref --verify --quiet refs/remotes/origin/staging; then
+                git checkout -B staging origin/staging
+            else
+                git checkout -B staging
+            fi
+            
+            git merge origin/qa --no-ff -m "Merge origin/qa to staging - Build ${BUILD_ID}"
+            git push origin staging
+            echo "Successfully merged origin/qa to staging"
+            rm -f ~/.git-credentials
+            '''
+          }
+        }
+      }
+    }
+    
+    stage('Deployment in staging') {
+      environment {
+        KUBECONFIG = credentials("config")
+      }
+      steps {
+        script {
+          sh '''
+          rm -Rf .kube
+          mkdir .kube
+          cat $KUBECONFIG > .kube/config
+          
+          echo "Deploying to STAGING environment..."
+          
+          if [ -d "charts" ]; then
+            cp charts/values-staging.yaml values.yml
+            sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
+            sed -i "s+movieService:.*repository.*+movieService.repository: ${DOCKER_ID}/${MOVIE_IMAGE}+g" values.yml
+            sed -i "s+castService:.*repository.*+castService.repository: ${DOCKER_ID}/${CAST_IMAGE}+g" values.yml
+            helm upgrade --install movie-cast-app charts --values=values.yml --namespace staging
+          else
+            sed -i "s|image: movie-service:.*|image: ${DOCKER_ID}/${MOVIE_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/staging/movie-deployment.yaml
+            sed -i "s|image: cast-service:.*|image: ${DOCKER_ID}/${CAST_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/staging/cast-deployment.yaml
+            
+            kubectl apply -f k8s-manifests/namespaces/staging-namespace.yaml
+            kubectl apply -f k8s-manifests/staging/
+            
+            kubectl rollout status deployment/movie-service -n staging --timeout=300s
+            kubectl rollout status deployment/cast-service -n staging --timeout=300s
+          fi
+          
+          echo "Deployed to STAGING environment successfully"
+          '''
+        }
+      }
+    }
+    
+    stage('Promotion to PROD') {
+      steps {
+        timeout(time: 60, unit: "MINUTES") {
+          input message: 'STAGING environment validated. Merge to PROD branch and deploy to PRODUCTION?', ok: 'Deploy to PRODUCTION'
+        }
+        script {
+          withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+            sh '''
+            echo "Promoting to PRODUCTION environment..."
+            git config user.name "Jenkins"
+            git config user.email "jenkins@datascientest.com"
+            git config credential.helper store
+            echo "https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com" > ~/.git-credentials
+            
+            git fetch origin
+            
+            if git show-ref --verify --quiet refs/remotes/origin/prod; then
+                git checkout -B prod origin/prod
+            else
+                git checkout -B prod
+            fi
+            
+            git merge origin/staging --no-ff -m "Merge origin/staging to prod - Build ${BUILD_ID}"
+            git push origin prod
+            echo "Successfully merged origin/staging to prod"
+            rm -f ~/.git-credentials
+            '''
+          }
+        }
+      }
+    }
+    
+    stage('Deploiement en prod') {
+      environment {
+        KUBECONFIG = credentials("config")
+      }
+      steps {
+        script {
+          sh '''
+          rm -Rf .kube
+          mkdir .kube
+          cat $KUBECONFIG > .kube/config
+          
+          echo "Deploying to PRODUCTION environment..."
+          
+          if [ -d "charts" ]; then
+            cp charts/values-prod.yaml values.yml
+            sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
+            sed -i "s+movieService:.*repository.*+movieService.repository: ${DOCKER_ID}/${MOVIE_IMAGE}+g" values.yml
+            sed -i "s+castService:.*repository.*+castService.repository: ${DOCKER_ID}/${CAST_IMAGE}+g" values.yml
+            helm upgrade --install movie-cast-app charts --values=values.yml --namespace prod
+          else
+            sed -i "s|image: movie-service:.*|image: ${DOCKER_ID}/${MOVIE_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/prod/movie-deployment.yaml
+            sed -i "s|image: cast-service:.*|image: ${DOCKER_ID}/${CAST_IMAGE}:${DOCKER_TAG}|g" k8s-manifests/prod/cast-deployment.yaml
+            
+            kubectl apply -f k8s-manifests/namespaces/prod-namespace.yaml
+            kubectl apply -f k8s-manifests/prod/
+            
+            kubectl rollout status deployment/movie-service -n prod --timeout=300s
+            kubectl rollout status deployment/cast-service -n prod --timeout=300s
+          fi
+          
+          echo "Deployed to PRODUCTION environment successfully"
+          '''
+        }
+      }
+    }
+  }
+  
+  post {
+    always {
+      sh '''
+      # Cleanup
+      docker rm -f movie-service || true
+      docker rm -f cast-service || true
+      docker system prune -f || true
+      '''
+    }
+    success {
+      echo 'Pipeline completed successfully!'
+    }
+    failure {
+      echo 'Pipeline failed!'
+    }
+  }
 }

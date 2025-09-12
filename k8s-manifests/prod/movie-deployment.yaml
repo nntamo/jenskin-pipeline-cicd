@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: movie-service-prod
+  namespace: prod
+  labels:
+    app: movie-service
+    environment: prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: movie-service
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: movie-service
+        environment: prod
+    spec:
+      imagePullSecrets:
+      - name: dockerhub-secret
+      containers:
+      - name: movie-service
+        image: nguetsop/jenskin-cicd-projekt:movie-service-latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URI
+          value: "postgresql://movie_db_username:movie_db_password@movie-db:5432/movie_db_dev"
+        - name: CAST_SERVICE_HOST_URL
+          value: "http://cast-service:8000/api/v1/casts/"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "150m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"

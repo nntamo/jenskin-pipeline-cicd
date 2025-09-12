@@ -1,47 +1,37 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cast-service
-  namespace: prod
+  name: cast-service-staging
+  namespace: staging
   labels:
     app: cast-service
-    environment: prod
+    environment: staging
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: cast-service
+      environment: staging
   template:
     metadata:
       labels:
         app: cast-service
+        environment: staging
     spec:
+      imagePullSecrets:
+      - name: dockerhub-secret
       containers:
       - name: cast-service
-        image: votre-username/cast-service:latest
+        image: nguetsop/jenskin-cicd-projekt:cast-service-latest
         ports:
         - containerPort: 8000
         env:
-        - name: DATABASE_URL
-          value: "postgresql://user:password@postgres:5432/casts_prod"
-        - name: ENVIRONMENT
-          value: "prod"
+        - name: DATABASE_URI
+          value: "postgresql://cast_db_username:cast_db_password@cast-db:5432/cast_db_dev"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "500m"
+            memory: "128Mi"
+            cpu: "100m"
           limits:
             memory: "512Mi"
-            cpu: "1000m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
+            cpu: "400m"

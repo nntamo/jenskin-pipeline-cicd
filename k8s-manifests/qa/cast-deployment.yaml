@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cast-service
+  name: cast-service-qa
   namespace: qa
   labels:
     app: cast-service
@@ -11,25 +11,27 @@ spec:
   selector:
     matchLabels:
       app: cast-service
+      environment: qa
   template:
     metadata:
       labels:
         app: cast-service
+        environment: qa
     spec:
+      imagePullSecrets:
+      - name: dockerhub-secret
       containers:
       - name: cast-service
-        image: votre-username/cast-service:latest
+        image: nguetsop/jenskin-cicd-projekt:cast-service-latest
         ports:
         - containerPort: 8000
         env:
-        - name: DATABASE_URL
-          value: "postgresql://user:password@postgres:5432/casts_qa"
-        - name: ENVIRONMENT
-          value: "qa"
+        - name: DATABASE_URI
+          value: "postgresql://cast_db_username:cast_db_password@cast-db:5432/cast_db_dev"
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "250m"
+            memory: "96Mi"
+            cpu: "75m"
           limits:
-            memory: "256Mi"
-            cpu: "500m"
+            memory: "384Mi"
+            cpu: "300m"

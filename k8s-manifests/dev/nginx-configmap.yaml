@@ -4,24 +4,34 @@ metadata:
   name: nginx-config
   namespace: dev
 data:
-  nginx.conf: |
-    events {
-        worker_connections 1024;
+  default.conf: |
+    upstream cast_service {
+        server cast-service:8000;
     }
-    http {
-        upstream cast_service {
-            server cast-service:8000;
+    
+    upstream movie_service {
+        server movie-service:8000;
+    }
+    
+    server {
+        listen 8080;
+        
+        location /api/v1/casts {
+            proxy_pass http://cast_service;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         }
-        upstream movie_service {
-            server movie-service:8000;
+        
+        location /api/v1/movies {
+            proxy_pass http://movie_service;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         }
-        server {
-            listen 80;
-            location /api/v1/casts {
-                proxy_pass http://cast_service;
-            }
-            location /api/v1/movies {
-                proxy_pass http://movie_service;
-            }
+        
+        location / {
+            return 200 '{"status":"ok","environment":"dev","services":["cast-service","movie-service"]}';
+            add_header Content-Type application/json;
         }
     }

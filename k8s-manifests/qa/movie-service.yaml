@@ -5,11 +5,13 @@ metadata:
   namespace: qa
   labels:
     app: movie-service
+    environment: qa
 spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
   selector:
     app: movie-service
-  ports:
-  - protocol: TCP
-    port: 8000
-    targetPort: 8000
-  type: ClusterIP
+    environment: qa

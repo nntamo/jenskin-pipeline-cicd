@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: movie-db-staging
+  namespace: staging
+  labels:
+    app: movie-db
+    environment: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: movie-db
+      environment: staging
+  template:
+    metadata:
+      labels:
+        app: movie-db
+        environment: staging
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:12.1-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: "movie_db_username"
+        - name: POSTGRES_PASSWORD
+          value: "movie_db_password"
+        - name: POSTGRES_DB
+          value: "movie_db_dev"
+        volumeMounts:
+        - name: postgres-data-movie
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "400m"
+      volumes:
+      - name: postgres-data-movie
+        persistentVolumeClaim:
+          claimName: postgres-data-movie-staging

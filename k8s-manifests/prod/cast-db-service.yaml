@@ -1,17 +1,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: cast-service
+  name: cast-db
   namespace: prod
   labels:
-    app: cast-service
+    app: cast-db
     environment: prod
 spec:
   type: ClusterIP
   ports:
-  - port: 8000
-    targetPort: 8000
+  - port: 5432
+    targetPort: 5432
     protocol: TCP
   selector:
-    app: cast-service
+    app: cast-db
     environment: prod

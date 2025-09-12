@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: movie-service
+  name: movie-service-qa
   namespace: qa
   labels:
     app: movie-service
@@ -11,27 +11,29 @@ spec:
   selector:
     matchLabels:
       app: movie-service
+      environment: qa
   template:
     metadata:
       labels:
         app: movie-service
+        environment: qa
     spec:
+      imagePullSecrets:
+      - name: dockerhub-secret
       containers:
       - name: movie-service
-        image: votre-username/movie-service:latest
+        image: nguetsop/jenskin-cicd-projekt:movie-service-latest
         ports:
         - containerPort: 8000
         env:
-        - name: DATABASE_URL
-          value: "postgresql://user:password@postgres:5432/movies_qa"
-        - name: CAST_SERVICE_URL
-          value: "http://cast-service:8000"
-        - name: ENVIRONMENT
-          value: "qa"
+        - name: DATABASE_URI
+          value: "postgresql://movie_db_username:movie_db_password@movie-db:5432/movie_db_dev"
+        - name: CAST_SERVICE_HOST_URL
+          value: "http://cast-service:8000/api/v1/casts/"
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "250m"
+            memory: "96Mi"
+            cpu: "75m"
           limits:
-            memory: "256Mi"
-            cpu: "500m"
+            memory: "384Mi"
+            cpu: "300m"
