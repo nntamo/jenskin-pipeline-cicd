@@ -22,12 +22,15 @@ spec:
       - name: dockerhub-secret
       containers:
       - name: cast-service
-        image: nguetsop/jenskin-cicd-projekt:cast-service-latest
+        image: nguetsop/cast-service:latest
         ports:
         - containerPort: 8000
         env:
         - name: DATABASE_URI
-          value: "postgresql://cast_db_username:cast_db_password@cast-db:5432/cast_db_dev"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: DATABASE_URI
         resources:
           requests:
             memory: "64Mi"

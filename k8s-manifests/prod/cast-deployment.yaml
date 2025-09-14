@@ -22,7 +22,7 @@ spec:
       - name: dockerhub-secret
       containers:
       - name: cast-service
-        image: nguetsop/jenskin-cicd-projekt:cast-service-latest
+        image: nguetsop/cast-service:latest
         ports:
         - containerPort: 8000
         env:

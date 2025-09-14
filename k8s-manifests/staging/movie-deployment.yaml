@@ -22,7 +22,7 @@ spec:
       - name: dockerhub-secret
       containers:
       - name: movie-service
-        image: nguetsop/jenskin-cicd-projekt:movie-service-latest
+        image: nguetsop/movie-service:latest
         ports:
         - containerPort: 8000
         env:
