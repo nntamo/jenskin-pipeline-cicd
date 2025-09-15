@@ -59,11 +59,11 @@ spec:
         # Configuration identique - seules les valeurs changent
         resources:
           requests:
-            memory: "512Mi"   # Identique partout
-            cpu: "250m"       # Identique partout
+            memory: "128Mi"   # Identique partout
+            cpu: "100m"       # Identique partout
           limits:
-            memory: "1Gi"     # Identique partout
-            cpu: "500m"       # Identique partout
+            memory: "256Mi"     # Identique partout
+            cpu: "200m"       # Identique partout
        
         volumeMounts:
         - name: postgres-data-cast
