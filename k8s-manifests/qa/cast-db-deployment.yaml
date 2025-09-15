@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cast-db-qa  # Remplacer qa par dev/qa/staging/prod
+  name: cast-db-qa
   namespace: qa
   labels:
     app: cast-db
@@ -14,7 +14,7 @@ spec:
       app: cast-db
       environment: qa
   strategy:
-    type: Recreate  # Standard pour toutes les bases de données
+    type: Recreate
   template:
     metadata:
       labels:
@@ -22,21 +22,19 @@ spec:
         environment: qa
         component: database
     spec:
-      # Security context standard pour tous les environnements
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
         runAsGroup: 999
         fsGroup: 999
-      
+     
       containers:
       - name: postgres
-        image: postgres:15-alpine  # Version identique partout
+        image: postgres:15-alpine
         ports:
         - containerPort: 5432
           name: postgres
-        
-        # Configuration des secrets identique partout
+       
         env:
         - name: POSTGRES_USER
           valueFrom:
@@ -57,66 +55,22 @@ spec:
           value: /var/lib/postgresql/data/pgdata
         - name: POSTGRES_INITDB_ARGS
           value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-        
-        # RESSOURCES - Seule différence entre environnements
+       
+        # Configuration identique - seules les valeurs changent
         resources:
           requests:
-            memory: "MEMORY_REQUEST"  # Variable selon env
-            cpu: "CPU_REQUEST"       # Variable selon env
+            memory: "512Mi"   # Identique partout
+            cpu: "250m"       # Identique partout
           limits:
-            memory: "MEMORY_LIMIT"   # Variable selon env
-            cpu: "CPU_LIMIT"         # Variable selon env
-        
-        # Health checks identiques partout
-        livenessProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-          successThreshold: 1
-        
-        readinessProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-          successThreshold: 1
-        
-        startupProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 30
-          successThreshold: 1
-        
-        # Volumes identiques partout
+            memory: "1Gi"     # Identique partout
+            cpu: "500m"       # Identique partout
+       
         volumeMounts:
         - name: postgres-data-cast
           mountPath: /var/lib/postgresql/data
         - name: shared-memory
           mountPath: /dev/shm
-      
+     
       volumes:
       - name: postgres-data-cast
         persistentVolumeClaim:
@@ -124,5 +78,4 @@ spec:
       - name: shared-memory
         emptyDir:
           medium: Memory
-          sizeLimit: "SHARED_MEMORY_SIZE"  # Variable selon env
-
+          sizeLimit: "128Mi"   # Identique partout

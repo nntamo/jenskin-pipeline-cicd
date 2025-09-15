@@ -27,14 +27,14 @@ spec:
         runAsUser: 999
         runAsGroup: 999
         fsGroup: 999
-      
+     
       containers:
       - name: postgres
         image: postgres:15-alpine
         ports:
         - containerPort: 5432
           name: postgres
-        
+       
         env:
         - name: POSTGRES_USER
           valueFrom:
@@ -55,21 +55,22 @@ spec:
           value: /var/lib/postgresql/data/pgdata
         - name: POSTGRES_INITDB_ARGS
           value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-        
+       
+        # Configuration identique - seules les valeurs changent
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "100m"
+            memory: "512Mi"   # Identique partout
+            cpu: "250m"       # Identique partout
           limits:
-            memory: "1Gi"
-            cpu: "500m"
-        
+            memory: "1Gi"     # Identique partout
+            cpu: "500m"       # Identique partout
+       
         volumeMounts:
         - name: postgres-data-cast
           mountPath: /var/lib/postgresql/data
         - name: shared-memory
           mountPath: /dev/shm
-      
+     
       volumes:
       - name: postgres-data-cast
         persistentVolumeClaim:
@@ -77,4 +78,4 @@ spec:
       - name: shared-memory
         emptyDir:
           medium: Memory
-          sizeLimit: "256Mi"
+          sizeLimit: "128Mi"   # Identique partout
