@@ -4012,21 +4012,6 @@ pipeline {
       }
     }
     
-    stage('Health Checks') {
-      steps {
-        script {
-          sh '''
-          export KUBECONFIG=$(pwd)/.kube/config
-          
-          kubectl get pods -n dev -o wide
-          kubectl get endpoints -n dev
-          
-          echo "Health checks completed"
-          '''
-        }
-      }
-    }
-    
     stage('Promotion to QA') {
       steps {
         timeout(time: 30, unit: "MINUTES") {
