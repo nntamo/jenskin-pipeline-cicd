@@ -3792,8 +3792,6 @@
 // }
 
 
-
-
 pipeline {
   environment {
     DOCKER_ID = "nguetsop"
@@ -4109,3 +4107,4 @@ pipeline {
     }
   }
 }
+
