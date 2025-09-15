@@ -1,3 +1,45 @@
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: cast-service-prod
+#   namespace: prod
+#   labels:
+#     app: cast-service
+#     environment: prod
+# spec:
+#   replicas: 3
+#   selector:
+#     matchLabels:
+#       app: cast-service
+#       environment: prod
+#   template:
+#     metadata:
+#       labels:
+#         app: cast-service
+#         environment: prod
+#     spec:
+#       imagePullSecrets:
+#       - name: dockerhub-secret
+#       containers:
+#       - name: cast-service
+#         image: nguetsop/cast-service:latest
+#         ports:
+#         - containerPort: 8000
+#         env:
+#         - name: DATABASE_URI
+#           valueFrom:
+#             secretKeyRef:
+#               name: cast-db-secret
+#               key: DATABASE_URI
+#         resources:
+#           requests:
+#             memory: "64Mi"
+#             cpu: "50m"
+#           limits:
+#             memory: "256Mi"
+#             cpu: "200m"
+
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -8,6 +50,11 @@ metadata:
     environment: prod
 spec:
   replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   selector:
     matchLabels:
       app: cast-service
@@ -18,20 +65,59 @@ spec:
         app: cast-service
         environment: prod
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       imagePullSecrets:
       - name: dockerhub-secret
       containers:
       - name: cast-service
-        image: nguetsop/cast-service:latest
+        image: nguetsop/cast-service:v.16.0  # Tag spécifique
         ports:
         - containerPort: 8000
         env:
         - name: DATABASE_URI
-          value: "postgresql://cast_db_username:cast_db_password@cast-db:5432/cast_db_dev"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: DATABASE_URI
+        - name: ENVIRONMENT
+          value: "production"
+        
+        # Ressources appropriées pour production
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "150m"
+            memory: "512Mi"
+            cpu: "250m"
           limits:
             memory: "1Gi"
-            cpu: "1000m"
+            cpu: "500m"
+        
+        # Health checks essentiels
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      
+      # Distribution des pods sur différents nœuds
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cast-service
+              topologyKey: kubernetes.io/hostname

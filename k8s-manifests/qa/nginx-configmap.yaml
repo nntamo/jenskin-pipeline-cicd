@@ -3,35 +3,98 @@ kind: ConfigMap
 metadata:
   name: nginx-config
   namespace: qa
+  labels:
+    app: nginx
+    environment: qa
 data:
   default.conf: |
+    # Configuration upstream pour QA
     upstream cast_service {
-        server cast-service:8000;
+        server cast-service:8000 max_fails=2 fail_timeout=20s;
+        keepalive 16;
     }
     
     upstream movie_service {
-        server movie-service:8000;
+        server movie-service:8000 max_fails=2 fail_timeout=20s;
+        keepalive 16;
     }
     
+    # Configuration du serveur nginx pour QA
     server {
         listen 8080;
+        server_name _;
         
+        # Timeouts adaptés pour QA
+        proxy_connect_timeout 20s;
+        proxy_send_timeout 20s;
+        proxy_read_timeout 20s;
+        proxy_buffering on;
+        
+        # Headers de base
+        add_header X-Environment "qa" always;
+        
+        # Logging pour QA
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log warn;
+        
+        # Gestion des erreurs
+        error_page 502 503 504 /50x.html;
+        location = /50x.html {
+            internal;
+            return 502 '{"error":"Service temporarily unavailable","environment":"qa","timestamp":"$time_iso8601"}';
+            add_header Content-Type application/json;
+        }
+        
+        # Endpoint de health check
+        location /health {
+            access_log off;
+            return 200 '{"status":"healthy","environment":"qa","timestamp":"$time_iso8601"}';
+            add_header Content-Type application/json;
+        }
+        
+        # API Cast Service
         location /api/v1/casts {
             proxy_pass http://cast_service;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Headers pour le debugging en QA
+            add_header X-Upstream-Server cast-service always;
+            add_header X-Environment qa always;
         }
         
+        # API Movie Service  
         location /api/v1/movies {
             proxy_pass http://movie_service;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Headers pour le debugging en QA
+            add_header X-Upstream-Server movie-service always;
+            add_header X-Environment qa always;
         }
         
-        location / {
-            return 200 '{"status":"ok","environment":"qa","services":["cast-service","movie-service"]}';
+        # Endpoint de status pour les tests QA
+        location /status {
+            access_log off;
+            return 200 '{"status":"ok","environment":"qa","services":["cast-service","movie-service"],"replicas":{"cast-service":3,"movie-service":3},"timestamp":"$time_iso8601"}';
             add_header Content-Type application/json;
+        }
+        
+        # Route par défaut
+        location / {
+            return 200 '{"message":"QA API Gateway","environment":"qa","endpoints":["/api/v1/casts","/api/v1/movies","/health","/status"],"timestamp":"$time_iso8601"}';
+            add_header Content-Type application/json;
+        }
+        
+        # Favicon (éviter les erreurs 404)
+        location = /favicon.ico {
+            access_log off;
+            log_not_found off;
+            return 204;
         }
     }

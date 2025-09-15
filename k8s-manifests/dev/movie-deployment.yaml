@@ -6,8 +6,14 @@ metadata:
   labels:
     app: movie-service
     environment: dev
+    component: api
 spec:
-  replicas: 1
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   selector:
     matchLabels:
       app: movie-service
@@ -17,14 +23,22 @@ spec:
       labels:
         app: movie-service
         environment: dev
+        component: api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+     
       imagePullSecrets:
       - name: dockerhub-secret
+     
       containers:
       - name: movie-service
-        image: nguetsop/movie-service:latest
+        image: nguetsop/movie-service:v.16.0
         ports:
         - containerPort: 8000
+          name: http
+       
         env:
         - name: DATABASE_URI
           valueFrom:
@@ -33,10 +47,26 @@ spec:
               key: DATABASE_URI
         - name: CAST_SERVICE_HOST_URL
           value: "http://cast-service:8000/api/v1/casts/"
+        - name: ENVIRONMENT
+          value: "dev"
+       
         resources:
           requests:
-            memory: "64Mi"
-            cpu: "50m"
-          limits:
             memory: "256Mi"
-            cpu: "200m"
+            cpu: "125m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+     
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - movie-service
+              topologyKey: kubernetes.io/hostname

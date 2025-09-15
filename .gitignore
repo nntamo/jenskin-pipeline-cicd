@@ -1,19 +1,7 @@
-env
-__pycache__
-.vscode
-.idea
-
-
-# Docker
-*.log
+# Environment variables
 .env
-
-# Kubernetes
-*.kubeconfig
-
-# IDE
-.vscode/
-.idea/
+*.env
+!.env.example
 
 # Python
 __pycache__/
@@ -25,10 +13,38 @@ env/
 venv/
 .venv/
 
+# Docker
+*.log
+
+# Kubernetes secrets et configurations sensibles
+secrets.yaml
+secrets-local.yaml
+secrets-prod.yaml
+*.kubeconfig
+config
+
+# IDE
+.vscode/
+.idea/
+
 # Node
 node_modules/
 npm-debug.log*
 
 # OS
 .DS_Store
-Thumbs.db.secrets.env
+Thumbs.db
+
+# Jenkins
+.jenkins/
+workspace/
+
+# Terraform (si utilisé)
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Logs
+*.log
+logs/

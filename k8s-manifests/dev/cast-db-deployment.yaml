@@ -6,41 +6,75 @@ metadata:
   labels:
     app: cast-db
     environment: dev
+    component: database
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: cast-db
       environment: dev
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: cast-db
         environment: dev
+        component: database
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      
       containers:
       - name: postgres
-        image: postgres:12.1-alpine
+        image: postgres:15-alpine
         ports:
         - containerPort: 5432
+          name: postgres
+        
         env:
         - name: POSTGRES_USER
-          value: "cast_db_username"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: POSTGRES_USER
         - name: POSTGRES_PASSWORD
-          value: "cast_db_password"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: POSTGRES_PASSWORD
         - name: POSTGRES_DB
-          value: "cast_db_dev"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: POSTGRES_DB
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_INITDB_ARGS
+          value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        
         volumeMounts:
         - name: postgres-data-cast
           mountPath: /var/lib/postgresql/data
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "50m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
+        - name: shared-memory
+          mountPath: /dev/shm
+      
       volumes:
       - name: postgres-data-cast
         persistentVolumeClaim:
           claimName: postgres-data-cast-dev
+      - name: shared-memory
+        emptyDir:
+          medium: Memory
+          sizeLimit: "256Mi"

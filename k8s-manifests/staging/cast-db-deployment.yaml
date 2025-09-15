@@ -1,46 +1,122 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cast-db-staging
+  name: cast-db-staging  
   namespace: staging
   labels:
     app: cast-db
     environment: staging
+    component: database
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: cast-db
       environment: staging
+  strategy:
+    type: Recreate  
   template:
     metadata:
       labels:
         app: cast-db
         environment: staging
+        component: database
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      
       containers:
       - name: postgres
-        image: postgres:12.1-alpine
+        image: postgres:15-alpine  
         ports:
         - containerPort: 5432
+          name: postgres
         env:
         - name: POSTGRES_USER
-          value: "cast_db_username"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: POSTGRES_USER
         - name: POSTGRES_PASSWORD
-          value: "cast_db_password"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: POSTGRES_PASSWORD
         - name: POSTGRES_DB
-          value: "cast_db_dev"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: POSTGRES_DB
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_INITDB_ARGS
+          value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+        resources:
+          requests:
+            memory: "MEMORY_REQUEST"  
+            cpu: "CPU_REQUEST"       
+          limits:
+            memory: "MEMORY_LIMIT"   
+            cpu: "CPU_LIMIT"         
+        
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - $(POSTGRES_USER)
+            - -d
+            - $(POSTGRES_DB)
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - $(POSTGRES_USER)
+            - -d
+            - $(POSTGRES_DB)
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        
+        startupProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - $(POSTGRES_USER)
+            - -d
+            - $(POSTGRES_DB)
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        
+        # Volumes identiques partout
         volumeMounts:
         - name: postgres-data-cast
           mountPath: /var/lib/postgresql/data
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "400m"
+        - name: shared-memory
+          mountPath: /dev/shm
+      
       volumes:
       - name: postgres-data-cast
         persistentVolumeClaim:
           claimName: postgres-data-cast-staging
+      - name: shared-memory
+        emptyDir:
+          medium: Memory
+          sizeLimit: "SHARED_MEMORY_SIZE"  
+

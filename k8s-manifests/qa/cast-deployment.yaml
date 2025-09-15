@@ -1,3 +1,43 @@
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: cast-service-qa
+#   namespace: qa
+#   labels:
+#     app: cast-service
+#     environment: qa
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: cast-service
+#       environment: qa
+#   template:
+#     metadata:
+#       labels:
+#         app: cast-service
+#         environment: qa
+#     spec:
+#       imagePullSecrets:
+#       - name: dockerhub-secret
+#       containers:
+#       - name: cast-service
+#         image: nguetsop/cast-service:latest
+#         ports:
+#         - containerPort: 8000
+#         env:
+#         - name: DATABASE_URI
+#           value: "postgresql://cast_db_username:cast_db_password@cast-db:5432/cast_db_dev"
+#         resources:
+#           requests:
+#             memory: "96Mi"
+#             cpu: "75m"
+#           limits:
+#             memory: "384Mi"
+#             cpu: "300m"
+
+
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,8 +46,14 @@ metadata:
   labels:
     app: cast-service
     environment: qa
+    component: api
 spec:
-  replicas: 2
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   selector:
     matchLabels:
       app: cast-service
@@ -17,21 +63,79 @@ spec:
       labels:
         app: cast-service
         environment: qa
+        component: api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      
       imagePullSecrets:
       - name: dockerhub-secret
+      
       containers:
       - name: cast-service
-        image: nguetsop/cast-service:latest
+        image: nguetsop/cast-service:v.16.0
         ports:
         - containerPort: 8000
+          name: http
+        
+        # CORRECTION: Utilisation des secrets au lieu de valeurs en dur
         env:
         - name: DATABASE_URI
-          value: "postgresql://cast_db_username:cast_db_password@cast-db:5432/cast_db_dev"
+          valueFrom:
+            secretKeyRef:
+              name: cast-db-secret
+              key: DATABASE_URI
+        - name: ENVIRONMENT
+          value: "qa"
+        
+        # CORRECTION: Ressources appropriées pour QA (entre dev et prod)
         resources:
           requests:
-            memory: "96Mi"
-            cpu: "75m"
+            memory: "256Mi"
+            cpu: "125m"
           limits:
-            memory: "384Mi"
-            cpu: "300m"
+            memory: "512Mi"
+            cpu: "250m"
+        
+        # Health checks essentiels pour QA
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+      
+      # Distribution des 3 replicas sur différents nœuds
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cast-service
+              topologyKey: kubernetes.io/hostname
