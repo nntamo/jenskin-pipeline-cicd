@@ -4043,6 +4043,10 @@ pipeline {
             
             git fetch origin
             
+            # Forcer un état Git propre avant checkout (résout les conflits sed)
+            git reset --hard HEAD
+            git clean -fd
+            
             if git show-ref --verify --quiet refs/remotes/origin/qa; then
                 git checkout -B qa origin/qa
             else
