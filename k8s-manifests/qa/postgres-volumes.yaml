@@ -3,21 +3,30 @@ kind: PersistentVolumeClaim
 metadata:
   name: postgres-data-cast-qa
   namespace: qa
+  labels:
+    app: cast-db
+    environment: qa
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 2Gi
+  storageClassName: local-path  # Pour K3s
+
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-data-movie-qa
   namespace: qa
+  labels:
+    app: movie-db
+    environment: qa
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 2Gi
+  storageClassName: local-path  # Pour K3s

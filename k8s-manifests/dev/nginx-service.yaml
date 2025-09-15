@@ -1,15 +1,33 @@
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: nginx-proxy
+#   namespace: dev
+#   labels:
+#     app: nginx-proxy
+# spec:
+#   selector:
+#     app: nginx-proxy
+#   ports:
+#   - protocol: TCP
+#     port: 80
+#     targetPort: 80
+#   type: LoadBalancer
+
 apiVersion: v1
 kind: Service
 metadata:
   name: nginx-proxy
   namespace: dev
   labels:
-    app: nginx-proxy
+    app: nginx
+    environment: dev
 spec:
   selector:
-    app: nginx-proxy
+    app: nginx          # Correspond au deployment
+    environment: dev    # Ajouter pour correspondre
   ports:
   - protocol: TCP
-    port: 80
-    targetPort: 80
+    port: 80           # Port externe
+    targetPort: 8080   # Port du container nginx
   type: LoadBalancer

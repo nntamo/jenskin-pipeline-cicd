@@ -6,10 +6,12 @@ metadata:
   labels:
     app: movie-service
     environment: prod
+    component: api
 spec:
   type: ClusterIP
   ports:
-  - port: 8000
+  - name: http
+    port: 8000
     targetPort: 8000
     protocol: TCP
   selector:

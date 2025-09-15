@@ -1,3 +1,49 @@
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: movie-db-dev
+#   namespace: dev
+#   labels:
+#     app: movie-db
+#     environment: dev
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: movie-db
+#       environment: dev
+#   template:
+#     metadata:
+#       labels:
+#         app: movie-db
+#         environment: dev
+#     spec:
+#       containers:
+#       - name: postgres
+#         image: postgres:12.1-alpine
+#         ports:
+#         - containerPort: 5432
+#         env:
+#         - name: POSTGRES_USER
+#           value: "movie_db_username"
+#         - name: POSTGRES_PASSWORD
+#           value: "movie_db_password"
+#         - name: POSTGRES_DB
+#           value: "movie_db_dev"
+#         volumeMounts:
+#         - name: postgres-data-movie
+#           mountPath: /var/lib/postgresql/data
+#         resources:
+#           requests:
+#             memory: "64Mi"
+#             cpu: "50m"
+#           limits:
+#             memory: "256Mi"
+#             cpu: "200m"
+#       volumes:
+#       - name: postgres-data-movie
+#         persistentVolumeClaim:
+#           claimName: postgres-data-movie-dev
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,21 +71,30 @@ spec:
         - containerPort: 5432
         env:
         - name: POSTGRES_USER
-          value: "movie_db_username"
+          valueFrom:
+            secretKeyRef:
+              name: movie-db-secret
+              key: POSTGRES_USER
         - name: POSTGRES_PASSWORD
-          value: "movie_db_password"
+          valueFrom:
+            secretKeyRef:
+              name: movie-db-secret
+              key: POSTGRES_PASSWORD
         - name: POSTGRES_DB
-          value: "movie_db_dev"
+          valueFrom:
+            secretKeyRef:
+              name: movie-db-secret
+              key: POSTGRES_DB
         volumeMounts:
         - name: postgres-data-movie
           mountPath: /var/lib/postgresql/data
         resources:
           requests:
-            memory: "64Mi"
-            cpu: "50m"
+            memory: "512Mi"
+            cpu: "100m"
           limits:
-            memory: "256Mi"
-            cpu: "200m"
+            memory: "1Gi"
+            cpu: "500m"
       volumes:
       - name: postgres-data-movie
         persistentVolumeClaim:
