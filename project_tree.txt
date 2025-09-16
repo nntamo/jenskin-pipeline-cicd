@@ -1,0 +1,123 @@
+.
+├── Jenkinsfile
+├── README.md
+├── cast-service
+│   ├── Dockerfile
+│   ├── app
+│   │   ├── api
+│   │   │   ├── casts.py
+│   │   │   ├── db.py
+│   │   │   ├── db_manager.py
+│   │   │   └── models.py
+│   │   └── main.py
+│   └── requirements.txt
+├── charts
+│   ├── Chart.yaml
+│   ├── README.md
+│   ├── templates
+│   │   ├── NOTES.txt
+│   │   ├── _helpers.tpl
+│   │   ├── deployment.yaml
+│   │   ├── hpa.yaml
+│   │   ├── ingress.yaml
+│   │   ├── service.yaml
+│   │   ├── serviceaccount.yaml
+│   │   └── tests
+│   │       └── test-connection.yaml
+│   ├── values-dev.yaml
+│   ├── values-prod.yaml
+│   ├── values-qa.yaml
+│   ├── values-staging.yaml
+│   └── values.yaml
+├── docker-compose.yml
+├── dockerhub_link.txt
+├── github_link.txt
+├── jenkins_screenshots
+│   ├── Screenshot 2025-09-16 110327.png
+│   ├── Screenshot 2025-09-16 112758.png
+│   ├── Screenshot 2025-09-16 112916.png
+│   ├── Screenshot 2025-09-16 113107.png
+│   ├── Screenshot 2025-09-16 113248.png
+│   ├── Screenshot 2025-09-16 123528.png
+│   └── Screenshot 2025-09-16 123947.png
+├── k8s-manifests
+│   ├── dev
+│   │   ├── cast-db-deployment.yaml
+│   │   ├── cast-db-service.yaml
+│   │   ├── cast-deployment.yaml
+│   │   ├── cast-service.yaml
+│   │   ├── movie-db-deployment.yaml
+│   │   ├── movie-db-service.yaml
+│   │   ├── movie-deployment.yaml
+│   │   ├── movie-service.yaml
+│   │   ├── nginx-configmap.yaml
+│   │   ├── nginx-deployment.yaml
+│   │   ├── nginx-service.yaml
+│   │   ├── postgres-volumes.yaml
+│   │   └── secrets.yaml
+│   ├── namespaces
+│   │   ├── dev-namespace.yaml
+│   │   ├── prod-namespace.yaml
+│   │   ├── qa-namespace.yaml
+│   │   └── staging-namespace.yaml
+│   ├── prod
+│   │   ├── cast-db-deployment.yaml
+│   │   ├── cast-db-service.yaml
+│   │   ├── cast-deployment.yaml
+│   │   ├── cast-service.yaml
+│   │   ├── movie-db-deployment.yaml
+│   │   ├── movie-db-service.yaml
+│   │   ├── movie-deployment.yaml
+│   │   ├── movie-service.yaml
+│   │   ├── nginx-configmap.yaml
+│   │   ├── nginx-deployment.yaml
+│   │   ├── nginx-service.yaml
+│   │   ├── postgres-volumes.yaml
+│   │   └── secrets.yaml
+│   ├── qa
+│   │   ├── cast-db-deployment.yaml
+│   │   ├── cast-db-service.yaml
+│   │   ├── cast-deployment.yaml
+│   │   ├── cast-service.yaml
+│   │   ├── movie-db-deployment.yaml
+│   │   ├── movie-db-service.yaml
+│   │   ├── movie-deployment.yaml
+│   │   ├── movie-service.yaml
+│   │   ├── nginx-configmap.yaml
+│   │   ├── nginx-deployment.yaml
+│   │   ├── nginx-service.yaml
+│   │   ├── postgres-volumes.yaml
+│   │   └── secrets.yaml
+│   └── staging
+│       ├── cast-db-deployment.yaml
+│       ├── cast-db-service.yaml
+│       ├── cast-deployment.yaml
+│       ├── cast-service.yaml
+│       ├── movie-db-deployment.yaml
+│       ├── movie-db-service.yaml
+│       ├── movie-deployment.yaml
+│       ├── movie-service.yaml
+│       ├── nginx-configmap.yaml
+│       ├── nginx-deployment.yaml
+│       ├── nginx-service.yaml
+│       ├── postgres-volumes.yaml
+│       └── secrets.yaml
+├── movie-service
+│   ├── Dockerfile
+│   ├── app
+│   │   ├── api
+│   │   │   ├── db.py
+│   │   │   ├── db_manager.py
+│   │   │   ├── models.py
+│   │   │   ├── movies.py
+│   │   │   └── service.py
+│   │   └── main.py
+│   └── requirements.txt
+├── nginx_config.conf
+├── project_tree.txt
+└── scripts
+    ├── build-images.sh
+    ├── deploy.sh
+    └── setup-namespaces.sh
+
+18 directories, 103 files
