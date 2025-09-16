@@ -184,7 +184,7 @@ pipeline {
       }
     }
     
-    stage('Approval for DEV') {
+    stage('Promotion to DEV') {
       steps {
         timeout(time: 15, unit: "MINUTES") {
           input message: 'Deploy to DEV environment?', ok: 'Deploy to DEV'
