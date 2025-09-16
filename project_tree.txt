@@ -32,7 +32,8 @@
 ├── docker-compose.yml
 ├── dockerhub_link.txt
 ├── github_link.txt
-├── jenkins_screenshots
+├── jenkins_screenshots_PDF
+│   ├── PDF_file_capture.pdf
 │   ├── Screenshot 2025-09-16 110327.png
 │   ├── Screenshot 2025-09-16 112758.png
 │   ├── Screenshot 2025-09-16 112916.png
@@ -120,4 +121,4 @@
     ├── deploy.sh
     └── setup-namespaces.sh
 
-18 directories, 103 files
+18 directories, 104 files
