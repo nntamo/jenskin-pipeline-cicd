@@ -13,10 +13,10 @@ env/
 venv/
 .venv/
 
-# Docker
+# ## Docker
 *.log
 
-# Kubernetes secrets et configurations sensibles
+# ## Kubernetes secrets et configurations sensibles
 secrets.yaml
 secrets-local.yaml
 secrets-prod.yaml
@@ -39,12 +39,6 @@ Thumbs.db
 .jenkins/
 workspace/
 
-# Terraform (si utilisé)
-*.tfstate
-*.tfstate.backup
-.terraform/
-.terraform.lock.hcl
-
-# Logs
+# ## Logs
 *.log
 logs/

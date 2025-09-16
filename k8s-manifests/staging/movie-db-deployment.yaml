@@ -6,37 +6,23 @@ metadata:
   labels:
     app: movie-db
     environment: staging
-    component: database
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: movie-db
       environment: staging
-  strategy:
-    type: Recreate  # Standard pour toutes les bases de données
   template:
     metadata:
       labels:
         app: movie-db
         environment: staging
-        component: database
     spec:
-      # Security context standard pour tous les environnements
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-        runAsGroup: 999
-        fsGroup: 999
-      
       containers:
       - name: postgres
-        image: postgres:15-alpine  # Version identique partout
+        image: postgres:12.1-alpine
         ports:
         - containerPort: 5432
-          name: postgres
-        
-        # Configuration des secrets standardisée
         env:
         - name: POSTGRES_USER
           valueFrom:
@@ -53,75 +39,17 @@ spec:
             secretKeyRef:
               name: movie-db-secret
               key: POSTGRES_DB
-        - name: PGDATA
-          value: /var/lib/postgresql/data/pgdata
-        - name: POSTGRES_INITDB_ARGS
-          value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-        
-        # Ressources staging (entre QA et PROD)
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "250m"
-          limits:
-            memory: "2Gi"
-            cpu: "1000m"
-        
-        # Health checks standard pour tous les environnements
-        livenessProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-          successThreshold: 1
-        
-        readinessProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-          successThreshold: 1
-        
-        startupProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 30
-          successThreshold: 1
-        
-        # Volumes standard pour tous les environnements
         volumeMounts:
         - name: postgres-data-movie
           mountPath: /var/lib/postgresql/data
-        - name: shared-memory
-          mountPath: /dev/shm
-      
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
       volumes:
       - name: postgres-data-movie
         persistentVolumeClaim:
           claimName: postgres-data-movie-staging
-      - name: shared-memory
-        emptyDir:
-          medium: Memory
-          sizeLimit: 512Mi

@@ -10,8 +10,8 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
-  - port: 80           # Port externe (reste 80)
-    targetPort: 8080   # Port du container nginx (corrigé)
+  - port: 80           ##### Port externe (reste 80)
+    targetPort: 8080   ##### Port du container nginx
     protocol: TCP
     name: http
   selector:

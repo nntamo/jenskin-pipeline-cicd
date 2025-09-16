@@ -8,7 +8,7 @@ metadata:
     environment: dev
     component: database
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: cast-db
@@ -55,15 +55,13 @@ spec:
           value: /var/lib/postgresql/data/pgdata
         - name: POSTGRES_INITDB_ARGS
           value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-       
-        # Configuration identique - seules les valeurs changent
         resources:
           requests:
-            memory: "128Mi"   # Identique partout
-            cpu: "100m"       # Identique partout
+            memory: "128Mi"   
+            cpu: "100m"       
           limits:
-            memory: "256Mi"     # Identique partout
-            cpu: "200m"       # Identique partout
+            memory: "256Mi"     
+            cpu: "200m"       
        
         volumeMounts:
         - name: postgres-data-cast
@@ -78,4 +76,4 @@ spec:
       - name: shared-memory
         emptyDir:
           medium: Memory
-          sizeLimit: "128Mi"   # Identique partout
+          sizeLimit: "128Mi"   

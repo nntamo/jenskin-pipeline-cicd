@@ -1,51 +1,3 @@
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: movie-db-qa
-#   namespace: qa
-#   labels:
-#     app: movie-db
-#     environment: qa
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: movie-db
-#       environment: qa
-#   template:
-#     metadata:
-#       labels:
-#         app: movie-db
-#         environment: qa
-#     spec:
-#       containers:
-#       - name: postgres
-#         image: postgres:12.1-alpine
-#         ports:
-#         - containerPort: 5432
-#         env:
-#         - name: POSTGRES_USER
-#           value: "movie_db_username"
-#         - name: POSTGRES_PASSWORD
-#           value: "movie_db_password"
-#         - name: POSTGRES_DB
-#           value: "movie_db_dev"
-#         volumeMounts:
-#         - name: postgres-data-movie
-#           mountPath: /var/lib/postgresql/data
-#         resources:
-#           requests:
-#             memory: "96Mi"
-#             cpu: "75m"
-#           limits:
-#             memory: "384Mi"
-#             cpu: "300m"
-#       volumes:
-#       - name: postgres-data-movie
-#         persistentVolumeClaim:
-#           claimName: postgres-data-movie-qa
-
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -54,37 +6,23 @@ metadata:
   labels:
     app: movie-db
     environment: qa
-    component: database
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: movie-db
       environment: qa
-  strategy:
-    type: Recreate  # Important pour les bases de données avec volumes
   template:
     metadata:
       labels:
         app: movie-db
         environment: qa
-        component: database
     spec:
-      # Security context pour PostgreSQL
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-        runAsGroup: 999
-        fsGroup: 999
-      
       containers:
       - name: postgres
-        image: postgres:15-alpine  # Version récente et sécurisée
+        image: postgres:12.1-alpine
         ports:
         - containerPort: 5432
-          name: postgres
-        
-        # CORRECTION: Utilisation des secrets au lieu de valeurs en dur
         env:
         - name: POSTGRES_USER
           valueFrom:
@@ -101,71 +39,17 @@ spec:
             secretKeyRef:
               name: movie-db-secret
               key: POSTGRES_DB
-        - name: PGDATA
-          value: /var/lib/postgresql/data/pgdata
-        - name: POSTGRES_INITDB_ARGS
-          value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-        
-        # CORRECTION: Ressources appropriées pour QA (entre dev et prod)
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        
-        # Health checks pour QA
-        livenessProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        
-        readinessProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        
-        startupProbe:
-          exec:
-            command:
-            - pg_isready
-            - -U
-            - $(POSTGRES_USER)
-            - -d
-            - $(POSTGRES_DB)
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 30
-        
         volumeMounts:
         - name: postgres-data-movie
           mountPath: /var/lib/postgresql/data
-        - name: shared-memory
-          mountPath: /dev/shm
-      
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
       volumes:
       - name: postgres-data-movie
         persistentVolumeClaim:
           claimName: postgres-data-movie-qa
-      - name: shared-memory
-        emptyDir:
-          medium: Memory
-          sizeLimit: 256Mi

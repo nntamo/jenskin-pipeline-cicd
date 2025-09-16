@@ -8,7 +8,7 @@ metadata:
     environment: staging
     component: api
 spec:
-  replicas: 3  # Standardisé comme QA et PROD
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,22 +25,20 @@ spec:
         environment: staging
         component: api
     spec:
-      # Security context standard pour tous les environnements
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
-      
+     
       imagePullSecrets:
       - name: dockerhub-secret
-      
+     
       containers:
       - name: cast-service
-        image: nguetsop/cast-service:v.16.0  # Tag spécifique standard
+        image: nguetsop/cast-service:v.16.0
         ports:
         - containerPort: 8000
           name: http
-        
-        # Configuration des secrets standardisée
+       
         env:
         - name: DATABASE_URI
           valueFrom:
@@ -49,54 +47,11 @@ spec:
               key: DATABASE_URI
         - name: ENVIRONMENT
           value: "staging"
-        
-        # Ressources staging (entre QA et PROD)
+       
         resources:
           requests:
-            memory: "384Mi"
-            cpu: "200m"
+            memory: "256Mi"
+            cpu: "125m"
           limits:
-            memory: "768Mi"
-            cpu: "400m"
-        
-        # Health checks standard pour tous les environnements
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 30
-      
-      # Anti-affinité standard pour tous les environnements
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchExpressions:
-                - key: app
-                  operator: In
-                  values:
-                  - cast-service
-              topologyKey: kubernetes.io/hostname
+            memory: "512Mi"
+            cpu: "250m"

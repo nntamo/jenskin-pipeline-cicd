@@ -11,8 +11,8 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
-  storageClassName: local-path  # Pour K3s
+      storage: 5Gi
+  storageClassName: local-path
 
 ---
 apiVersion: v1
@@ -28,5 +28,5 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
-  storageClassName: local-path  # Pour K3s
+      storage: 5Gi
+  storageClassName: local-path

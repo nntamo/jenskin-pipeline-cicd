@@ -3,21 +3,30 @@ kind: PersistentVolumeClaim
 metadata:
   name: postgres-data-cast-staging
   namespace: staging
+  labels:
+    app: cast-db
+    environment: staging
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 5Gi
+  storageClassName: local-path
+
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-data-movie-staging
   namespace: staging
+  labels:
+    app: movie-db
+    environment: staging
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 5Gi
+  storageClassName: local-path
